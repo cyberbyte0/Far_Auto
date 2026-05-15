@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Far_Auto</string>
+    <string name="accessibility_service_label">Far_Auto Automator</string>
+    <string name="accessibility_description">Allows Far_Auto to inspect the screen and perform clicks for automation scripts.</string>
+</resources>
