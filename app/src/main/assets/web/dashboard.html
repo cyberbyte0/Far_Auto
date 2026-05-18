@@ -6,144 +6,176 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
     <style>
         :root {
-            /* Light Mode Defaults */
-            --bg: #f8f9fa;
+            /* Light Mode */
+            --bg: #f8fafc;
             --panel: #ffffff;
-            --border: #e0e0e0;
-            --accent: #7f52ff;
-            --accent-dim: rgba(127, 82, 255, 0.1);
-            --text: #1a202c;
+            --header: #ffffff;
+            --border: #cbd5e1;
+            --accent: #6366f1;
+            --accent-dim: rgba(99, 102, 241, 0.1);
+            --text: #0f172a;
             --text-dim: #64748b;
             --danger: #ef4444;
             --success: #10b981;
-            --header-height: 70px;
-            --terminal-bg: #1a202c;
-            --terminal-text: #e2e8f0;
+            --terminal-bg: #1e293b;
+            --terminal-text: #f1f5f9;
+            --input-bg: #f1f5f9;
+            --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         }
 
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg: #0b0e14;
-                --panel: #151921;
-                --border: #252a34;
-                --accent: #bb86fc;
-                --accent-dim: rgba(187, 134, 252, 0.1);
-                --text: #e1e7ef;
-                --text-dim: #94a3b8;
-                --danger: #ff5252;
-                --success: #00e676;
-                --terminal-bg: #0f131a;
-                --terminal-text: #a5b4fc;
-            }
+        html[data-theme="dark"] {
+            --bg: #0b0e14;
+            --panel: #151921;
+            --header: #151921;
+            --border: #2d3748;
+            --accent: #bb86fc;
+            --accent-dim: rgba(187, 134, 252, 0.15);
+            --text: #f7fafc;
+            --text-dim: #cbd5e0;
+            --danger: #ff5252;
+            --success: #00e676;
+            --terminal-bg: #0f131a;
+            --terminal-text: #e0e7ff;
+            --input-bg: #1e2530;
+            --shadow: 0 10px 15px -3px rgb(0 0 0 / 0.3);
         }
-        * { box-sizing: border-box; }
+
+        * { box-sizing: border-box; transition: background 0.3s ease, border 0.3s ease; }
         body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-        .header { height: var(--header-height); background: rgba(21, 25, 33, 0.8); backdrop-filter: blur(10px); padding: 0 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 100; }
+
+        .header { height: 70px; background: var(--header); padding: 0 24px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); z-index: 100; box-shadow: var(--shadow); }
         .logo-group { display: flex; align-items: center; gap: 12px; }
-        .logo-group h1 { font-size: 1.25rem; font-weight: 700; margin: 0; background: linear-gradient(90deg, #7f52ff, #bb86fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .status-pill { padding: 4px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
+        .logo-group h1 { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--accent); }
+        .status-pill { padding: 4px 14px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
+
         .auth-bar { display: flex; align-items: center; gap: 12px; }
-        .input-dark { background: #1e2530; border: 1px solid var(--border); color: #fff; padding: 8px 14px; border-radius: 8px; outline: none; font-family: 'Inter', sans-serif; font-size: 0.9rem; }
-        .input-dark:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+        .input-dark { background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 10px 16px; border-radius: 10px; outline: none; font-size: 0.9rem; }
+        .input-dark:focus { border-color: var(--accent); }
+
         .main-content { display: flex; flex-grow: 1; overflow: hidden; padding: 24px; gap: 24px; }
         @media (max-width: 900px) { .main-content { flex-direction: column; overflow-y: auto; } .left-panel { max-width: 100% !important; min-height: 400px; } }
-        .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; display: flex; flex-direction: column; position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-        .left-panel { flex: 0 0 380px; overflow: hidden; display: flex; flex-direction: column; }
-        .right-panel { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-        .panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .panel-header h3 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-dim); }
-        .btn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; }
-        .btn:hover { filter: brightness(1.2); transform: translateY(-1px); }
-        .btn-primary { background: var(--accent); color: white; }
-        .btn-danger { background: rgba(255, 82, 82, 0.15); color: var(--danger); border: 1px solid var(--danger); }
-        .btn-danger:hover { background: var(--danger); color: white; }
+
+        .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; display: flex; flex-direction: column; box-shadow: var(--shadow); overflow: hidden; }
+        .left-panel { flex: 0 0 380px; }
+        .right-panel { flex: 1; position: relative; }
+
+        .panel-header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .panel-header h3 { margin: 0; font-size: 0.875rem; font-weight: 600; text-transform: uppercase; color: var(--text-dim); }
+
+        .btn { padding: 10px 18px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid var(--danger); }
         .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
-        .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+        .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
         #script-list { overflow-y: auto; flex-grow: 1; padding: 12px; }
-        .script-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 12px; margin-bottom: 8px; border: 1px solid transparent; }
-        .script-item:hover { background: #1e2530; border-color: var(--border); }
-        .script-info { display: flex; flex-direction: column; gap: 2px; }
-        .script-name { font-weight: 500; font-size: 0.95rem; }
+        .script-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 14px; margin-bottom: 8px; }
+        .script-item:hover { background: var(--accent-dim); }
+        .script-name { font-weight: 600; }
         .script-actions { display: flex; gap: 4px; opacity: 0; }
         .script-item:hover .script-actions { opacity: 1; }
-        .tabs { display: flex; gap: 8px; padding: 12px 20px; background: var(--bg); }
-        .tab-btn { background: transparent; color: var(--text-dim); border: none; font-size: 0.9rem; font-weight: 600; cursor: pointer; padding: 8px 16px; border-radius: 8px; }
-        .tab-btn.active { background: var(--panel); color: var(--accent); }
-        #log-terminal {
-            background: var(--terminal-bg);
-            color: var(--terminal-text);
-            padding: 20px;
-            flex-grow: 1;
-            overflow-y: auto;
-            font-family: 'JetBrains Mono', monospace;
-            white-space: pre-wrap;
-            font-size: 0.85rem;
-            line-height: 1.6;
-        }
-        .terminal-controls { padding: 16px 20px; background: var(--panel); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; }
+
+        .tabs { display: flex; gap: 8px; padding: 12px 24px; background: var(--bg); border-bottom: 1px solid var(--border); }
+        .tab-btn { background: transparent; color: var(--text-dim); border: none; font-size: 0.875rem; font-weight: 600; cursor: pointer; padding: 10px 20px; border-radius: 10px; }
+        .tab-btn.active { background: var(--panel); color: var(--accent); box-shadow: var(--shadow); }
+
+        #log-terminal { background: var(--terminal-bg); color: var(--terminal-text); padding: 24px; flex-grow: 1; overflow-y: auto; font-family: 'JetBrains Mono', monospace; white-space: pre-wrap; font-size: 0.875rem; line-height: 1.6; }
+        .terminal-controls { padding: 20px 24px; background: var(--panel); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 16px; }
+
         #editor-container { display: none; flex-direction: column; flex-grow: 1; overflow: hidden; }
-        #ace-editor { flex-grow: 1; width: 100%; height: 100%; background: var(--terminal-bg); }
-        .editor-footer { padding: 12px 20px; background: var(--panel); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        #ace-editor { flex-grow: 1; width: 100%; height: 100%; }
+        .editor-footer { padding: 16px 24px; background: var(--panel); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+
+        .theme-toggle {
+            cursor: pointer; padding: 8px; border-radius: 12px; width: 42px; height: 42px;
+            display: flex; align-items: center; justify-content: center;
+            background: var(--input-bg); border: 1px solid var(--border); color: var(--text);
+            margin-right: 12px; font-size: 1.25rem;
+        }
+
+        #setup-overlay { display: none; position: absolute; inset: 0; background: var(--panel); z-index: 50; padding: 40px; overflow-y: auto; }
+        .setup-card { max-width: 800px; margin: 0 auto; }
+        .code-box { background: var(--terminal-bg); color: var(--terminal-text); padding: 15px; border-radius: 10px; overflow-x: auto; position: relative; font-size: 13px; font-family: 'JetBrains Mono', monospace; margin-bottom: 20px; }
+        .copy-btn { position: absolute; top: 10px; right: 10px; background: var(--accent); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; }
     </style>
 </head>
-<body>
+<body data-theme="dark">
     <div class="header">
         <div class="logo-group">
             <h1>Far_Auto</h1>
             <div id="status-badge" class="status-pill">Disconnected</div>
         </div>
         <div class="auth-bar">
+            <div class="theme-toggle" onclick="toggleTheme()" id="theme-icon">☀️</div>
             <input type="password" id="token-input" class="input-dark" placeholder="Auth Token">
             <button class="btn btn-primary" onclick="saveToken()">Connect</button>
         </div>
     </div>
     <div class="main-content">
         <div class="panel left-panel">
-            <div class="panel-header">
-                <h3>Scripts</h3>
-                <div style="display: flex; gap: 8px;">
-                    <button class="btn btn-ghost" style="padding: 6px;" title="Refresh" onclick="loadScripts()">↻</button>
-                    <button class="btn btn-primary" style="padding: 6px 12px;" onclick="newScript()">+ New</button>
-                </div>
-            </div>
+            <div class="panel-header"><h3>Scripts</h3><div style="display: flex; gap: 8px;"><button class="btn btn-ghost" style="padding: 8px" onclick="loadScripts()">↻</button><button class="btn btn-primary" onclick="newScript()">+ New</button></div></div>
             <div id="script-list"></div>
-            <div style="padding: 20px; text-align: center; border-top: 1px solid var(--border); margin-top: auto;">
-                <span style="font-size: 0.7rem; color: var(--text-dim); opacity: 0.5;">Developed by Fareed</span>
-            </div>
+            <div style="padding: 20px; text-align: center; border-top: 1px solid var(--border); opacity: 0.6; font-size: 0.75rem; font-weight: 500; color: var(--text-dim);">Developed by Fareed</div>
         </div>
         <div class="panel right-panel">
-            <div class="tabs">
-                <button id="tab-terminal" class="tab-btn active" onclick="switchTab('terminal')">Terminal</button>
-                <button id="tab-editor" class="tab-btn" onclick="switchTab('editor')">Editor</button>
-            </div>
-            <div id="terminal-container" style="display: flex; flex-direction: column; flex-grow: 1; overflow: hidden;">
-                <div id="log-terminal">Enter token and connect to see logs...</div>
-                <div class="terminal-controls">
-                    <div style="display: flex; gap: 12px;">
-                        <input type="text" id="term-input" class="input-dark" style="flex-grow: 1;" placeholder="Enter command response..." onkeypress="if(event.key === 'Enter') sendInput()">
-                        <button class="btn btn-primary" onclick="sendInput()">Send</button>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <button class="btn btn-danger" onclick="stopCurrent()">Stop Execution</button>
-                        <button class="btn btn-ghost" onclick="clearLogsUI()">Clear Console</button>
+            <div class="tabs"><button id="tab-terminal" class="tab-btn active" onclick="switchTab('terminal')">Terminal</button><button id="tab-editor" class="tab-btn" onclick="switchTab('editor')">Editor</button></div>
+
+            <div id="terminal-container" style="display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; position: relative;">
+                <div id="log-terminal">Waiting for connection...</div>
+
+                <div id="setup-overlay">
+                    <div class="setup-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h2 style="color: var(--accent); margin: 0;">🚀 AI Agent Setup Package</h2>
+                            <button class="btn btn-ghost" onclick="closeSetup()">Close</button>
+                        </div>
+                        <p style="color: var(--text-dim);">Your phone is ready to connect. Follow these steps on your computer.</p>
+
+                        <h4>1. Install Requirements</h4>
+                        <div class="code-box">pip install mcp httpx<div class="copy-btn" onclick="copyText('pip install mcp httpx')">Copy</div></div>
+
+                        <h4>2. Save Bridge Script</h4>
+                        <p>Save this as <code style="color: var(--accent)">far_auto_mcp.py</code> on your computer.</p>
+                        <div class="code-box" id="setup-script-code"><div class="copy-btn" onclick="copyIdText('setup-script-code')">Copy Script</div><div class="content-text"></div></div>
+
+                        <h4>3. Connect to AI Client (Claude, Cursor, Cline, etc.)</h4>
+                        
+                        <h5>Option A: Claude Desktop (JSON)</h5>
+                        <p>Add this to your Claude config file. You can find it at:</p>
+                        <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 4px;">📂 <b>Mac:</b> <code>~/Library/Application Support/Claude/claude_desktop_config.json</code></p>
+                        <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0;">📂 <b>Windows:</b> <code>%APPDATA%\Claude\claude_desktop_config.json</code></p>
+                        <div class="code-box" id="setup-claude-config"><div class="copy-btn" onclick="copyIdText('setup-claude-config')">Copy JSON</div><div class="content-text"></div></div>
+
+                        <h5>Option B: Cursor / Cline / Others (UI Setup)</h5>
+                        <p>If you are using Cursor or VS Code extensions like Cline, add a new <b>stdio</b> MCP server with these values:</p>
+                        <ul style="font-size: 0.9rem; color: var(--text-dim);">
+                            <li><b>Command:</b> <code>python3</code></li>
+                            <li><b>Args:</b> <code>/path/to/far_auto_mcp.py</code></li>
+                            <li><b>Env Variables:</b> 
+                                <ul>
+                                    <li><code>DEVICE_IP</code> = <code id="setup-ip-text" style="color: var(--accent)">127.0.0.1</code></li>
+                                    <li><code>AUTH_TOKEN</code> = <code id="setup-token-text" style="color: var(--accent)">TOKEN</code></li>
+                                </ul>
+                            </li>
+                        </ul>
                     </div>
                 </div>
+
+                <div class="terminal-controls">
+                    <div style="display: flex; gap: 12px;"><input type="text" id="term-input" class="input-dark" style="flex-grow: 1;" placeholder="Command input..." onkeypress="if(event.key === 'Enter') sendInput()"><button class="btn btn-primary" onclick="sendInput()">Send</button></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;"><button class="btn btn-danger" onclick="stopCurrent()">Stop Script</button><button class="btn btn-ghost" onclick="clearLogsUI()">Clear Console</button></div>
+                </div>
             </div>
+
             <div id="editor-container">
                 <div id="ace-editor"></div>
                 <div class="editor-footer">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span style="font-size: 0.8rem; color: var(--text-dim);">File:</span>
-                        <input type="text" id="editor-filename" class="input-dark" style="width: 180px; padding: 4px 8px; font-size: 0.8rem;" placeholder="filename.py">
-                    </div>
-                    <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-ghost" onclick="saveScript()">Save</button>
-                        <button class="btn btn-primary" onclick="saveAndRun()">Save & Run</button>
-                    </div>
+                    <div style="display: flex; align-items: center; gap: 12px;"><span style="font-size: 0.875rem; font-weight: 600; color: var(--text-dim);">File:</span><input type="text" id="editor-filename" class="input-dark" style="width: 180px; padding: 6px 12px;" placeholder="name.py"></div>
+                    <div style="display: flex; gap: 12px;"><button class="btn btn-ghost" onclick="saveScript()">Save</button><button class="btn btn-primary" onclick="saveAndRun()">Save & Run</button></div>
                 </div>
             </div>
         </div>
@@ -151,25 +183,35 @@
     <script>
         let currentToken = localStorage.getItem('auto_token') || '';
         document.getElementById('token-input').value = currentToken;
-        let editor;
+        let editor, lastScriptState = false, stopPollingTimer = null;
 
-        window.addEventListener('DOMContentLoaded', () => {
-            try {
-                editor = ace.edit("ace-editor");
-                const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-                editor.setTheme(isDark ? "ace/theme/tomorrow_night_eighties" : "ace/theme/chrome");
-                editor.session.setMode("ace/mode/python");
-                editor.setOptions({ fontSize: "14px", showPrintMargin: false });
-            } catch(e) { console.error("Ace init failed", e); }
-            if(currentToken) loadScripts();
-        });
-
-        function saveToken() {
-            currentToken = document.getElementById('token-input').value;
-            localStorage.setItem('auto_token', currentToken);
-            loadScripts();
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            document.body.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            document.getElementById('theme-icon').innerText = theme === 'dark' ? '☀️' : '🌙';
+            if (editor) {
+                editor.setTheme(theme === 'dark' ? "ace/theme/tomorrow_night_eighties" : "ace/theme/chrome");
+            }
         }
 
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            applyTheme(current === 'dark' ? 'light' : 'dark');
+        }
+
+        window.onload = () => {
+            const savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            try {
+                editor = ace.edit("ace-editor");
+                editor.session.setMode("ace/mode/python");
+                editor.setOptions({ fontSize: "14px", showPrintMargin: false });
+                applyTheme(savedTheme);
+            } catch(e) {}
+            if(currentToken) loadScripts();
+        };
+
+        function saveToken() { currentToken = document.getElementById('token-input').value; localStorage.setItem('auto_token', currentToken); loadScripts(); }
         function switchTab(tab) {
             document.getElementById('tab-terminal').className = tab === 'terminal' ? 'tab-btn active' : 'tab-btn';
             document.getElementById('tab-editor').className = tab === 'editor' ? 'tab-btn active' : 'tab-btn';
@@ -179,178 +221,136 @@
         }
 
         async function api(path, method='GET', body=null) {
-            if (!currentToken) return { ok: false };
-            const url = path + (path.includes('?') ? '&' : '?') + 'token=' + currentToken;
+            if (!currentToken) return null;
             try {
-                const options = { method };
-                if(body) {
-                    options.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-                    options.body = body;
-                }
-                const res = await fetch(url, options);
-                if (res.status === 401) {
-                    updateStatus(false, "Unauthorized");
-                    return { ok: false };
-                }
+                const url = path + (path.includes('?') ? '&' : '?') + 'token=' + currentToken;
+                const opt = { method };
+                if(body) { opt.headers = { 'Content-Type': 'application/x-www-form-urlencoded' }; opt.body = body; }
+                const res = await fetch(url, opt);
+                if (res.status === 401) return res;
                 return res;
-            } catch (e) { return { ok: false }; }
+            } catch (e) { return null; }
         }
 
         async function loadScripts() {
             const res = await api('/scripts');
-            if (res.ok) {
+            if (res && res.ok) {
                 const scripts = await res.json();
-                const list = document.getElementById('script-list');
-                list.innerHTML = scripts.map(s => {
-                    const isSystem = s === 'ui_explorer.py';
-                    return `
-                        <div class="script-item">
-                            <div class="script-info">
-                                <span class="script-name">${s}</span>
-                                <span style="font-size: 0.7rem; color: var(--text-dim);">Python Script</span>
-                            </div>
-                            <div class="script-actions">
-                                <button class="btn btn-ghost" style="padding: 4px 8px; font-size: 0.7rem;" onclick="openEditor('${s}')">Edit</button>
-                                ${isSystem ? '' : `<button class="btn btn-ghost" style="padding: 4px 8px; font-size: 0.7rem;" onclick="renameScript('${s}')">Rename</button>`}
-                                <button class="btn btn-primary" style="padding: 4px 8px; font-size: 0.7rem;" onclick="runScript('${s}')">Run</button>
-                                <button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem; border: none;" onclick="${isSystem ? `resetScript('${s}')` : `deleteScript('${s}')`}">${isSystem ? 'Reset' : 'Del'}</button>
-                            </div>
+                document.getElementById('script-list').innerHTML = scripts.map(s => `
+                    <div class="script-item">
+                        <div class="script-info"><span class="script-name">${s}</span></div>
+                        <div class="script-actions">
+                            <button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.7rem;" onclick="openEditor('${s}')">Edit</button>
+                            ${s === 'ui_explorer.py' ? '' : `<button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.7rem;" onclick="renameScript('${s}')">Rename</button>`}
+                            <button class="btn btn-primary" style="padding: 6px 10px; font-size: 0.7rem;" onclick="runScript('${s}')">Run</button>
+                            <button class="btn btn-danger" style="padding: 6px 10px; font-size: 0.7rem; border:none;" onclick="${s === 'ui_explorer.py' ? `resetScript('${s}')` : `deleteScript('${s}')`}">${s === 'ui_explorer.py' ? 'Reset' : 'Del'}</button>
                         </div>
-                    `;
-                }).join('');
+                    </div>
+                `).join('');
             }
-        }
-
-        async function newScript() {
-            document.getElementById('editor-filename').value = 'new_script.py';
-            if (editor) editor.setValue('# New Script\nimport automator\n\n', -1);
-            switchTab('editor');
         }
 
         async function openEditor(name) {
             const res = await api('/script_content?name=' + encodeURIComponent(name));
-            if (res.ok) {
-                const content = await res.text();
-                document.getElementById('editor-filename').value = name;
-                if (editor) editor.setValue(content, -1);
-                switchTab('editor');
-            }
+            if (res && res.ok) { document.getElementById('editor-filename').value = name; editor.setValue(await res.text(), -1); switchTab('editor'); }
         }
 
         async function saveScript(quiet = false) {
             const name = document.getElementById('editor-filename').value.trim();
-            if (!name) { alert('Filename required'); return false; }
+            if (!name) return false;
             const fullName = name.endsWith('.py') ? name : name + '.py';
-            const content = editor ? editor.getValue() : "";
-            const res = await api('/save_script?name=' + encodeURIComponent(fullName), 'POST', 'postData=' + encodeURIComponent(content));
-            if (res.ok) {
-                loadScripts();
-                if (!quiet) alert('Saved successfully');
-                return true;
-            } else { alert('Failed to save'); return false; }
+            const res = await api('/save_script?name=' + encodeURIComponent(fullName), 'POST', 'postData=' + encodeURIComponent(editor.getValue()));
+            if (res && res.ok) { loadScripts(); if (!quiet) alert('Saved'); return true; }
+            return false;
         }
 
-        async function saveAndRun() {
-            if (await saveScript(true)) {
-                runScript(document.getElementById('editor-filename').value.trim());
-            }
-        }
-
-        async function runScript(name) {
-            const res = await api('/run?name=' + encodeURIComponent(name), 'POST');
-            if (res.ok) {
-                switchTab('terminal');
-                document.getElementById('log-terminal').innerText = 'Initializing...';
-            }
-        }
-
+        async function saveAndRun() { if (await saveScript(true)) runScript(document.getElementById('editor-filename').value.trim()); }
+        async function runScript(name) { const res = await api('/run?name=' + encodeURIComponent(name), 'POST'); if (res && res.ok) { switchTab('terminal'); document.getElementById('log-terminal').innerText = 'Starting...'; } }
         async function stopCurrent() { await api('/stop', 'POST'); }
+        async function deleteScript(name) { if (confirm('Delete?')) { await api('/delete?name=' + name, 'POST'); loadScripts(); } }
+        async function resetScript(name) { if (confirm('Reset?')) { await api('/reset?name=' + name, 'POST'); loadScripts(); } }
+        async function renameScript(o) { const n = prompt('New name:', o); if (n && n !== o) { await api(`/rename?old_name=${o}&new_name=${n}`, 'POST'); loadScripts(); } }
+        async function sendInput() { const i = document.getElementById('term-input'); await api('/input?data=' + encodeURIComponent(i.value), 'POST'); document.getElementById('log-terminal').innerText = '> ' + i.value + '\n(Sent)'; i.value = ''; }
 
-        async function deleteScript(name) {
-            if (confirm('Delete ' + name + '?')) {
-                const res = await api('/delete?name=' + encodeURIComponent(name), 'POST');
-                if (res.ok) loadScripts();
-            }
-        }
-
-        async function resetScript(name) {
-            if (confirm('Reset ' + name + '?')) {
-                const res = await api('/reset?name=' + encodeURIComponent(name), 'POST');
-                if (res.ok) { alert('Restored'); loadScripts(); }
-            }
-        }
-
-        async function renameScript(oldName) {
-            const newName = prompt('New name:', oldName);
-            if (newName && newName !== oldName) {
-                const res = await api(`/rename?old_name=${encodeURIComponent(oldName)}&new_name=${encodeURIComponent(newName)}`, 'POST');
-                if (res.ok) loadScripts();
-            }
-        }
-
-        async function sendInput() {
-            const el = document.getElementById('term-input');
-            const data = el.value;
-            const res = await api('/input?data=' + encodeURIComponent(data), 'POST');
-            if (res.ok) {
-                el.value = '';
-                document.getElementById('log-terminal').innerText = '> ' + data + '\n(Sent...)';
-            }
-        }
-
-        function updateStatus(accessibility, runningScript, disconnected = false) {
-            const badge = document.getElementById('status-badge');
-            if (disconnected) {
-                badge.innerText = 'DISCONNECTED';
-                badge.style.color = 'var(--danger)';
-                badge.style.borderColor = 'var(--danger)';
-            } else if (!accessibility) {
-                badge.innerText = 'ACCESSIBILITY OFF';
-                badge.style.color = 'var(--danger)';
-                badge.style.borderColor = 'var(--danger)';
-            } else if (runningScript) {
-                badge.innerText = 'Running: ' + runningScript;
-                badge.style.color = 'var(--success)';
-                badge.style.borderColor = 'var(--success)';
+        function copyText(txt) {
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(txt).then(() => {
+                    alert('Copied!');
+                }).catch(() => fallbackCopy(txt));
             } else {
-                badge.innerText = 'Connected';
-                badge.style.color = 'var(--accent)';
-                badge.style.borderColor = 'var(--accent)';
+                fallbackCopy(txt);
             }
+        }
+
+        function fallbackCopy(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                alert('Copied!');
+            } catch (err) {
+                alert('Copy failed');
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function copyIdText(id) { const el = document.querySelector(`#${id} .content-text`); copyText(el.innerText); }
+        function closeSetup() { 
+            document.getElementById('setup-overlay').style.display = 'none'; 
+            clearLogsUI(); 
+            api('/clear_logs');
         }
 
         setInterval(async () => {
             if (!currentToken) return;
-            try {
-                const statusRes = await api('/status');
-                if (statusRes && statusRes.ok) {
-                    const status = await statusRes.json();
-                    updateStatus(status.accessibility_enabled, status.running ? status.current_script : null);
-                    if (status.running) {
-                        const logRes = await api('/logs');
-                        if (logRes && logRes.ok) {
-                            const logs = await logRes.text();
-                            const term = document.getElementById('log-terminal');
-                            if (term.innerText !== logs) {
-                                const atBottom = term.scrollHeight - term.clientHeight <= term.scrollTop + 100;
-                                term.innerText = logs;
-                                if (atBottom) term.scrollTop = term.scrollHeight;
-                            }
+            const res = await api('/status');
+            const badge = document.getElementById('status-badge');
+            if (!res) { badge.innerText = 'DISCONNECTED'; badge.style.color = 'var(--danger)'; return; }
+            if (res.status === 401) { badge.innerText = 'UNAUTHORIZED'; badge.style.color = 'var(--danger)'; return; }
+
+            const status = await res.json();
+            const isRunning = status.running;
+
+            if (!status.accessibility_enabled) { badge.innerText = 'ACCESSIBILITY OFF'; badge.style.color = 'var(--danger)'; }
+            else if (isRunning) { badge.innerText = 'Running: ' + status.current_script; badge.style.color = 'var(--success)'; }
+            else { badge.innerText = 'Connected'; badge.style.color = 'var(--accent)'; }
+
+            if (isRunning) { lastScriptState = true; clearTimeout(stopPollingTimer); stopPollingTimer = null; }
+            else if (lastScriptState && !stopPollingTimer) { stopPollingTimer = setTimeout(() => { lastScriptState = false; }, 3000); }
+
+            if (true) {
+                const lRes = await api('/logs');
+                if (lRes && lRes.ok) {
+                    const logs = await lRes.text();
+                    if (logs.includes('FAR_AUTO_SETUP_PACKAGE_START')) {
+                        const jsonStr = logs.split('FAR_AUTO_SETUP_PACKAGE_START')[1].split('FAR_AUTO_SETUP_PACKAGE_END')[0];
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            document.querySelector('#setup-script-code .content-text').innerText = data.script;
+                            document.querySelector('#setup-claude-config .content-text').innerText = JSON.stringify(data.claude_config, null, 2);
+                            document.getElementById('setup-ip-text').innerText = data.ip;
+                            document.getElementById('setup-token-text').innerText = data.token;
+                            document.getElementById('setup-overlay').style.display = 'block';
+                            switchTab('terminal');
+                        } catch(e) { console.error("Setup parse error", e); }
+                    } else {
+                        const term = document.getElementById('log-terminal');
+                        if (term.innerText !== logs) {
+                            const atBottom = term.scrollHeight - term.clientHeight <= term.scrollTop + 100;
+                            term.innerText = logs;
+                            if (atBottom) term.scrollTop = term.scrollHeight;
                         }
                     }
-                } else if (statusRes && statusRes.status === 401) {
-                    const badge = document.getElementById('status-badge');
-                    badge.innerText = 'UNAUTHORIZED';
-                    badge.style.color = 'var(--danger)';
-                } else {
-                    updateStatus(false, null, true);
                 }
-            } catch (e) {
-                updateStatus(false, null, true);
             }
         }, 1000);
 
         function clearLogsUI() { document.getElementById('log-terminal').innerText = ''; }
+        function newScript() { document.getElementById('editor-filename').value = 'new.py'; if (editor) editor.setValue('# New Script\nimport automator\n', -1); switchTab('editor'); }
     </script>
 </body>
 </html>

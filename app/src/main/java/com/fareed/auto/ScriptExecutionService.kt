@@ -45,6 +45,24 @@ class ScriptExecutionService : Service() {
             }
         }
 
+        fun injectLog(message: String) {
+            synchronized(logBuffer) {
+                logBuffer.append(message).append("\n")
+            }
+        }
+
+        fun stopScript() {
+            isRunning.set(false)
+            try {
+                if (Python.isStarted()) {
+                    val py = Python.getInstance()
+                    py.getModule("automator").put("last_stopped_session", executionSessionId)
+                }
+            } catch (e: Exception) {}
+            activeThread?.interrupt()
+            activeThread = null
+        }
+
         private var lastNotifTime: Long = 0
     }
 

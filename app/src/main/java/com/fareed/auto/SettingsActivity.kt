@@ -16,6 +16,9 @@ class SettingsActivity : AppCompatActivity() {
         val swDashboard = findViewById<SwitchCompat>(R.id.swDashboard)
         swDashboard.isChecked = prefs.getBoolean("dashboard_enabled", true)
 
+        val swMcp = findViewById<SwitchCompat>(R.id.swMcp)
+        swMcp.isChecked = prefs.getBoolean("mcp_enabled", true)
+
         val etPort = findViewById<EditText>(R.id.etPort)
         etPort.setText(prefs.getInt("dashboard_port", 8080).toString())
 
@@ -26,9 +29,11 @@ class SettingsActivity : AppCompatActivity() {
             val port = etPort.text.toString().toIntOrNull() ?: 8080
             val token = etToken.text.toString().trim()
             val dashboardEnabled = swDashboard.isChecked
+            val mcpEnabled = swMcp.isChecked
             
             prefs.edit().apply {
                 putBoolean("dashboard_enabled", dashboardEnabled)
+                putBoolean("mcp_enabled", mcpEnabled)
                 putInt("dashboard_port", port)
                 putString("dashboard_token", token)
                 apply()

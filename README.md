@@ -25,6 +25,7 @@
 - 🏃 **Background Persistence** — High-priority foreground service with **WakeLocks** ensures scripts continue running when you switch apps or turn off the screen.
 - 🌐 **Modern Web Console** — Professional developer interface with the **Ace Code Editor**, syntax highlighting, and instant terminal feedback.
 - ⚡ **Performance Optimized** — Kotlin-side UI filtering and **In-Memory** logging for zero-lag interaction.
+- 🤖 **Live Agent Mode (MCP)** — Connect external AI models (Claude, Cursor, Cline) to control your device using the Model Context Protocol.
 - 🛡️ **Security First** — Path-traversal protection and cryptographically secure auth tokens.
 - 📦 **Backup & Import** — One-tap "Export All" to ZIP and easy script importing from device storage.
 
@@ -100,6 +101,29 @@ The new web interface is a full-featured IDE and Terminal:
 - **Integrated Workflow**: "Save & Run" directly from the editor tab.
 - **Smart Console**: Automatic bottom-scrolling with manual scroll override.
 - **Management**: Rename, Reset, or Delete scripts with ease.
+
+---
+
+## 🤖 Live Agent Mode (MCP)
+
+Far_Auto now supports the **Model Context Protocol (MCP)**, allowing AI agents (like Claude Desktop, Cursor, or Cline) to interact with your phone in real-time.
+
+### Setup
+1. Open the dashboard on your computer.
+2. Tap the **MCP** text in the app header on your phone.
+3. Follow the instructions in the dashboard modal to:
+   - Install dependencies (`pip install mcp httpx`).
+   - Save the bridge script (`far_auto_mcp.py`).
+   - Add the config to Claude, Cursor, or Cline (the IP and Token are auto-filled!).
+
+### Exposed Tools
+The MCP server exposes the following tools to the AI:
+- `get_screen_info`: Returns a list of interactable UI elements.
+- `tap_element`: Taps on specific coordinates.
+- `type_text`: Types text into focused fields.
+- `navigate`: Performs back, home, or recents actions.
+- `open_app`: Launches apps by package name.
+- `get_screenshot`: Captures a visual screenshot.
 
 ---
 

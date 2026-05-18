@@ -13,11 +13,6 @@ import org.json.JSONObject
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
 
-/**
- * Bridge between Python background thread and Android Main Thread.
- * Every method follows the CompletableFuture + 5s Timeout pattern.
- * Correctly recycles AccessibilityNodeInfo to prevent memory leaks.
- */
 @Keep
 class AutomatorBridge {
 
@@ -30,7 +25,7 @@ class AutomatorBridge {
         handler.post {
             val root = service?.rootInActiveWindow
             if (root != null) {
-                val json = nodeToJson(root, "root")
+                val json = nodeToJson(root, "root", true)
                 root.recycle()
                 future.complete(json.toString())
             } else {
@@ -57,22 +52,12 @@ class AutomatorBridge {
                 .addStroke(GestureDescription.StrokeDescription(path, 0, 100))
                 .build()
             
-            val result = s.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
-                override fun onCompleted(gestureDescription: GestureDescription?) {
-                    future.complete(true)
-                }
-                override fun onCancelled(gestureDescription: GestureDescription?) {
-                    future.complete(false)
-                }
+            s.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
+                override fun onCompleted(gd: GestureDescription?) { future.complete(true) }
+                override fun onCancelled(gd: GestureDescription?) { future.complete(false) }
             }, null)
-            
-            if (!result) future.complete(false)
         }
-        return try {
-            future.get(5, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            false
-        }
+        return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { false }
     }
 
     fun swipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long): Boolean {
@@ -83,37 +68,23 @@ class AutomatorBridge {
                 future.complete(false)
                 return@post
             }
-            val path = Path().apply {
-                moveTo(x1, y1)
-                lineTo(x2, y2)
-            }
+            val path = Path().apply { moveTo(x1, y1); lineTo(x2, y2) }
             val gesture = GestureDescription.Builder()
                 .addStroke(GestureDescription.StrokeDescription(path, 0, durationMs))
                 .build()
 
-            val result = s.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
-                override fun onCompleted(gestureDescription: GestureDescription?) {
-                    future.complete(true)
-                }
-                override fun onCancelled(gestureDescription: GestureDescription?) {
-                    future.complete(false)
-                }
+            s.dispatchGesture(gesture, object : AccessibilityService.GestureResultCallback() {
+                override fun onCompleted(gd: GestureDescription?) { future.complete(true) }
+                override fun onCancelled(gd: GestureDescription?) { future.complete(false) }
             }, null)
-
-            if (!result) future.complete(false)
         }
-        return try {
-            future.get(5, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            false
-        }
+        return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { false }
     }
 
     fun inputText(text: String, clearFirst: Boolean): Boolean {
         val future = CompletableFuture<Boolean>()
         handler.post {
-            val s = service
-            val node = s?.rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            val node = service?.rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             if (node == null) {
                 future.complete(false)
                 return@post
@@ -131,33 +102,22 @@ class AutomatorBridge {
             node.recycle()
             future.complete(res)
         }
-        return try {
-            future.get(5, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            false
-        }
+        return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { false }
     }
 
     fun getScreenSize(): String {
         val future = CompletableFuture<String>()
         handler.post {
-            val context = service ?: return@post
-            val wm = context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                val bounds = wm.currentWindowMetrics.bounds
-                future.complete("${bounds.width()},${bounds.height()}")
-            } else {
-                val display = wm.defaultDisplay
-                val size = android.graphics.Point()
-                display.getRealSize(size)
-                future.complete("${size.x},${size.y}")
+            val context = service
+            if (context == null) {
+                future.complete("1080,2400")
+                return@post
             }
+            val wm = context.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager
+            val bounds = wm.currentWindowMetrics.bounds
+            future.complete("${bounds.width()},${bounds.height()}")
         }
-        return try {
-            future.get(2, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            "1080,2400" // Sensible default
-        }
+        return try { future.get(2, TimeUnit.SECONDS) } catch (e: Exception) { "1080,2400" }
     }
 
     fun pressBack(): Boolean = performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
@@ -167,25 +127,18 @@ class AutomatorBridge {
     fun launchApp(packageName: String): Boolean {
         val future = CompletableFuture<Boolean>()
         handler.post {
-            val s = service
-            val intent = s?.packageManager?.getLaunchIntentForPackage(packageName)
+            val intent = service?.packageManager?.getLaunchIntentForPackage(packageName)
             if (intent == null) {
                 future.complete(false)
                 return@post
             }
             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             try {
-                s.startActivity(intent)
+                service?.startActivity(intent)
                 future.complete(true)
-            } catch (e: Exception) {
-                future.complete(false)
-            }
+            } catch (e: Exception) { future.complete(false) }
         }
-        return try {
-            future.get(5, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            false
-        }
+        return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { false }
     }
 
     fun isSecureWindow(): Boolean {
@@ -203,8 +156,57 @@ class AutomatorBridge {
         }
     }
 
-    fun clearLogs() {
-        ScriptExecutionService.clearLogs()
+    fun getLastToast(): String? {
+        val future = CompletableFuture<String?>()
+        handler.post { future.complete(service?.lastToastText) }
+        return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { null }
+    }
+
+    fun clearLastToast() {
+        handler.post { service?.lastToastText = null }
+    }
+
+    fun clearLogs() = ScriptExecutionService.clearLogs()
+
+    fun takeScreenshot(): String? {
+        val future = CompletableFuture<String?>()
+        handler.post {
+            val s = service
+            if (s == null) {
+                future.complete(null)
+                return@post
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                s.takeScreenshot(android.view.Display.DEFAULT_DISPLAY, s.mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
+                    override fun onSuccess(screenshotResult: AccessibilityService.ScreenshotResult) {
+                        val buffer = screenshotResult.hardwareBuffer
+                        val bitmap = android.graphics.Bitmap.wrapHardwareBuffer(buffer, null)
+                        buffer.close()
+                        if (bitmap != null) {
+                            val softwareBitmap = bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                            bitmap.recycle()
+                            val stream = java.io.ByteArrayOutputStream()
+                            softwareBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, stream)
+                            val bytes = stream.toByteArray()
+                            val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                            future.complete(base64)
+                        } else {
+                            future.complete(null)
+                        }
+                    }
+                    override fun onFailure(errorCode: Int) {
+                        future.complete(null)
+                    }
+                })
+            } else {
+                future.complete(null)
+            }
+        }
+        return try {
+            future.get(10, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            null
+        }
     }
 
     fun dumpTree(): String {
@@ -213,45 +215,12 @@ class AutomatorBridge {
             val root = service?.rootInActiveWindow
             val json = JSONObject()
             if (root != null) {
-                json.put("root", nodeToJson(root, "root"))
+                json.put("root", nodeToJson(root, "root", true))
                 root.recycle()
             }
             future.complete(json.toString())
         }
-        return try {
-            future.get(5, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            "{}"
-        }
-    }
-
-    fun findNodes(resourceId: String?, text: String?): String {
-        val future = CompletableFuture<String>()
-        handler.post {
-            val root = service?.rootInActiveWindow ?: run {
-                future.complete("[]")
-                return@post
-            }
-            val list = mutableListOf<AccessibilityNodeInfo>()
-            if (resourceId != null) {
-                list.addAll(root.findAccessibilityNodeInfosByViewId(resourceId))
-            } else if (text != null) {
-                list.addAll(root.findAccessibilityNodeInfosByText(text))
-            }
-
-            val array = JSONArray()
-            list.forEach { 
-                array.put(nodeToJson(it, "found"))
-                it.recycle()
-            }
-            root.recycle()
-            future.complete(array.toString())
-        }
-        return try {
-            future.get(5, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            "[]"
-        }
+        return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { "{}" }
     }
 
     fun getInteractableNodes(): String {
@@ -263,132 +232,77 @@ class AutomatorBridge {
             }
             val array = JSONArray()
             val metrics = service?.resources?.displayMetrics
-            val screenWidth = metrics?.widthPixels ?: 1080
-            val screenHeight = metrics?.heightPixels ?: 2400
-            
-            walkInteractable(root, "root", array, screenWidth, screenHeight)
+            walkInteractable(root, "root", array, metrics?.widthPixels ?: 1080, metrics?.heightPixels ?: 2400)
             root.recycle()
             future.complete(array.toString())
         }
-        return try {
-            future.get(5, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            "[]"
-        }
+        return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { "[]" }
     }
 
     private fun walkInteractable(node: AccessibilityNodeInfo, path: String, array: JSONArray, sw: Int, sh: Int) {
         val rect = android.graphics.Rect()
         node.getBoundsInScreen(rect)
-        
-        // Visibility check
         if (rect.left < sw && rect.top < sh && rect.right > 0 && rect.bottom > 0) {
-            
-            val text = node.text?.toString()
-            val desc = node.contentDescription?.toString()
-            val id = node.viewIdResourceName
-            
-            // Smarter filter: 
-            // 1. Is it explicitly interactable?
-            // 2. Does it actually have some content (text/desc/id) OR is it a known input type?
-            val hasContent = !text.isNullOrEmpty() || !desc.isNullOrEmpty() || !id.isNullOrEmpty()
             val isInput = node.className?.contains("EditText", true) == true
-            val isExplicitlyActionable = node.isClickable || node.isFocusable
-            
-            if (isExplicitlyActionable) {
-                // If it has content, OR it's an input, OR one of its children has text
-                if (hasContent || isInput || findDeepText(node).isNotEmpty()) {
-                    array.put(nodeToJson(node, path, false))
+            if (node.isClickable || node.isFocusable || isInput) {
+                val item = nodeToJson(node, path, false)
+                if (!item.has("text") && !item.has("desc")) {
+                    val deepText = findDeepText(node)
+                    if (deepText.isNotEmpty()) item.put("text", deepText)
                 }
+                array.put(item)
             }
-            
             for (i in 0 until node.childCount) {
-                val child = node.getChild(i)
-                if (child != null) {
-                    walkInteractable(child, "$path/$i", array, sw, sh)
-                    child.recycle()
-                }
+                val child = node.getChild(i) ?: continue
+                walkInteractable(child, "$path/$i", array, sw, sh)
+                child.recycle()
             }
         }
     }
 
-    private fun nodeToJson(node: AccessibilityNodeInfo, path: String, recursive: Boolean = true): JSONObject {
+    private fun findDeepText(node: AccessibilityNodeInfo): String {
+        val t = node.text?.toString() ?: ""
+        if (t.isNotEmpty()) return t
+        val d = node.contentDescription?.toString() ?: ""
+        if (d.isNotEmpty()) return d
+        for (i in 0 until node.childCount) {
+            val c = node.getChild(i) ?: continue
+            val res = findDeepText(c)
+            c.recycle()
+            if (res.isNotEmpty()) return res
+        }
+        return ""
+    }
+
+    private fun nodeToJson(node: AccessibilityNodeInfo, path: String, recursive: Boolean): JSONObject {
         val json = JSONObject()
         json.put("path", path)
         json.put("package", node.packageName?.toString() ?: "")
         json.put("class", node.className?.toString() ?: "")
-        
-        // Primary text/desc
-        val text = node.text?.toString()
-        val desc = node.contentDescription?.toString()
-        val id = node.viewIdResourceName
-        
-        if (!text.isNullOrEmpty()) json.put("text", text)
-        if (!desc.isNullOrEmpty()) json.put("desc", desc)
-        if (!id.isNullOrEmpty()) json.put("id", id)
-
-        // Deep text fallback: if this is a clickable container with no text, find child text
-        if (text.isNullOrEmpty() && desc.isNullOrEmpty()) {
-            val deepText = findDeepText(node)
-            if (deepText.isNotEmpty()) json.put("text", deepText)
-        }
-
-        val rect = android.graphics.Rect()
-        node.getBoundsInScreen(rect)
-        json.put("bounds", "${rect.left},${rect.top},${rect.right},${rect.bottom}")
-        
+        node.text?.let { json.put("text", it.toString()) }
+        node.contentDescription?.let { json.put("desc", it.toString()) }
+        node.viewIdResourceName?.let { json.put("id", it) }
+        val r = android.graphics.Rect()
+        node.getBoundsInScreen(r)
+        json.put("bounds", "${r.left},${r.top},${r.right},${r.bottom}")
         if (node.isClickable) json.put("clickable", true)
         if (node.isFocusable) json.put("focusable", true)
 
         if (recursive) {
-            val childrenArray = JSONArray()
+            val children = JSONArray()
             for (i in 0 until node.childCount) {
-                val child = node.getChild(i)
-                if (child != null) {
-                    childrenArray.put(nodeToJson(child, "$path/$i", true))
-                    child.recycle()
-                }
+                val child = node.getChild(i) ?: continue
+                children.put(nodeToJson(child, "$path/$i", true))
+                child.recycle()
             }
-            if (childrenArray.length() > 0) json.put("children", childrenArray)
+            if (children.length() > 0) json.put("children", children)
         }
-
         return json
     }
 
-    private fun findDeepText(node: AccessibilityNodeInfo): String {
-        val text = node.text?.toString()
-        if (!text.isNullOrEmpty()) return text
-        
-        val desc = node.contentDescription?.toString()
-        if (!desc.isNullOrEmpty()) return desc
-        
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i)
-            if (child != null) {
-                val childText = findDeepText(child)
-                child.recycle()
-                if (childText.isNotEmpty()) return childText
-            }
-        }
-        return ""
-    }
     private fun performGlobalAction(action: Int): Boolean {
         val future = CompletableFuture<Boolean>()
-        handler.post {
-            val s = service
-            if (s == null) {
-                android.util.Log.e("FarAuto", "Accessibility Service not running - cannot perform action $action")
-                future.complete(false)
-                return@post
-            }
-            val success = s.performGlobalAction(action)
-            android.util.Log.i("FarAuto", "Global action $action result: $success")
-            future.complete(success)
-        }
-        return try {
-            future.get(5, TimeUnit.SECONDS)
-        } catch (e: Exception) {
-            false
-        }
+        handler.post { future.complete(service?.performGlobalAction(action) ?: false) }
+        return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { false }
     }
 }

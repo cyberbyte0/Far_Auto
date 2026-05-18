@@ -37,6 +37,19 @@
             android:contentDescription="Refresh List"
             app:tint="@color/text_primary" />
 
+        <TextView
+            android:id="@+id/btnMcp"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginStart="16dp"
+            android:gravity="center"
+            android:text="MCP"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="AI Agent Setup" />
+
         <ImageButton
             android:id="@+id/btnSettings"
             android:layout_width="40dp"

@@ -42,6 +42,8 @@ def main():
             if PACKAGE_NAME:
                 elements = [el for el in elements if PACKAGE_NAME in el.get("package", "")]
 
+            last_toast = automator.get_last_toast()
+            print(f"[*] Last Toast: {last_toast or 'None'}")
             print(f"[*] Interactable elements found ({len(elements)}):")
             print("--- Shortcuts: [b]ack, [h]ome, [rec]ent, [up]/[dw]/[lt]/[rt] ---")
             print("")

@@ -276,6 +276,9 @@ class MainActivity : AppCompatActivity() {
         recyclerView.adapter = adapter
 
         findViewById<View>(R.id.btnRefresh).setOnClickListener { refreshScripts() }
+        findViewById<View>(R.id.btnMcp).setOnClickListener {
+            startActivity(Intent(this, McpActivity::class.java))
+        }
         findViewById<View>(R.id.btnSettings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }

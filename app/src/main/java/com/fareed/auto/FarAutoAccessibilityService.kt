@@ -20,6 +20,9 @@ class FarAutoAccessibilityService : AccessibilityService() {
         fun isRunning(): Boolean = instance != null
     }
 
+    @Volatile
+    var lastToastText: String? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
@@ -27,7 +30,15 @@ class FarAutoAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // Required override. We pull the tree on-demand in the bridge.
+        if (event?.eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
+            val text = event.text?.joinToString(" ")
+            val pkg = event.packageName?.toString() ?: "unknown"
+            
+            if (!text.isNullOrEmpty()) {
+                lastToastText = text
+                Log.i("FarAuto", "Notification Event from [$pkg]: $text")
+            }
+        }
     }
 
     override fun onInterrupt() {

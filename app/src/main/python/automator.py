@@ -47,6 +47,25 @@ def is_secure_window():
     check_stop()
     return bridge.isSecureWindow()
 
+def get_last_toast():
+    check_stop()
+    return bridge.getLastToast()
+
+def clear_last_toast():
+    check_stop()
+    bridge.clearLastToast()
+
+def wait_for_toast(timeout_ms=5000):
+    check_stop()
+    start = time.time()
+    while (time.time() - start) * 1000 < timeout_ms:
+        check_stop()
+        toast = get_last_toast()
+        if toast:
+            return toast
+        time.sleep(0.2)
+    return None
+
 def clear_logs():
     check_stop()
     bridge.clearLogs()
