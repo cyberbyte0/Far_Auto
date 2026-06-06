@@ -5,23 +5,24 @@
 # ---------- Gradle ----------
 .gradle/
 build/
+app/build/
+*/build/
 !gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
 
 # ---------- Android Studio / IntelliJ IDEA ----------
-.idea/workspace.xml
-.idea/caches/
-.idea/libraries/
-.idea/modules.xml
-.idea/navEditor.xml
-.idea/assetWizardSettings.xml
-.idea/deploymentTargetSelector.xml
-.idea/deviceManager.xml
+.idea/
 *.iml
 *.iws
+captures/
+.externalNativeBuild/
+.cxx/
 
-# Keep shared run configurations
-# .idea/runConfigurations/ is tracked by default
+# ---------- Other editors / AI tooling ----------
+.vscode/
+.claude/
+.gemini/
+.kotlin/
 
 # ---------- Local configuration (machine-specific) ----------
 local.properties
@@ -31,6 +32,7 @@ local.properties
 *.aab
 *.ap_
 *.dex
+*.hprof
 
 # ---------- Signing ----------
 *.jks
@@ -51,29 +53,13 @@ ehthumbs.db
 Desktop.ini
 *~
 
-# ---------- Git-related ignore ----------
-
-.idea/
-
-# ---------- Local configuration (machine-specific) ----------
-local.properties
-
-# ---------- Build outputs & APKs ----------
-*.apk
-*.aab
-*.ap_
-*.dex
-app/build/
-*/build/
-
-
 # ---------- Non-Essential / Personal / Dev Docs ----------
-.gemini/
 /GEMINI.md
 /RULES.md
 /TASKS.md
 /FULL_DOCS.md
 /Far_Auto_Documentation.md
+/CLAUDE.md
 architecture.md
 *.docx
 /*.png
@@ -89,14 +75,9 @@ ascript_decompiled/
 patch_dashboard.py
 patch_dashboard_v2.py
 
-# ---------- Specific Scripts ----------
-
 # ---------- Misc ----------
 manifest_dump.txt
 *.log
 *.tmp
 *.bak
 *.swp
-captures/
-.externalNativeBuild/
-.cxx/
