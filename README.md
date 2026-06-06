@@ -28,6 +28,7 @@
 - 🤖 **Live Agent Mode (MCP)** — Connect external AI models (Claude, Cursor, Cline) to control your device using the Model Context Protocol.
 - 🛡️ **Security First** — Path-traversal protection and cryptographically secure auth tokens.
 - 📦 **Backup & Import** — One-tap "Export All" to ZIP and easy script importing from device storage.
+- 🗒️ **Run Logs** — Every script run (web or app) is saved to a timestamped log file (`script_name_YYYY-MM-DD_HH-mm-ss.txt`); the latest 50 runs are kept.
 
 ---
 
@@ -76,21 +77,68 @@ Open the URL shown on the main screen (e.g., `http://192.168.1.5:8080`) in your 
 Launch the bundled `ui_explorer.py`. It provides a real-time interactive terminal where you can navigate your phone using shortcuts:
 - `b`: Back | `h`: Home | `rec`: Recents
 - `up`/`dw`: Scroll | `lt`/`rt`: Swipe
+- `ss`: Screenshot | `close`: Close current app from Recents
+- `cls`: Clear terminal | `exit`: Quit the explorer
 - `[number]`: Click a UI element or input text
 
 ---
 
 ## 🐍 Python API (automator module)
 
+All functions return `None`/`False` on failure and never raise exceptions into your script.
+
+### 👆 Gestures & Input
+
 | Function | Description |
 |---|---|
 | `automator.click(x, y)` | Precise coordinate tap |
+| `automator.click_element(el)` | Clicks the center of an element object (from `find_elements` etc.) |
 | `automator.swipe(x1, y1, x2, y2, ms)` | Gesture injection |
-| `automator.input_text("msg")` | Type into focused field |
+| `automator.input_text("msg")` | Type into focused field (clears first) |
+
+### 🔍 Screen Inspection
+
+| Function | Description |
+|---|---|
+| `automator.get_root()` | Returns the root node of the active window as JSON |
+| `automator.dump_tree()` | Returns full UI hierarchy as JSON |
+| `automator.find_elements(id, text)` | Find elements matching resource ID or text |
+| `automator.wait_for_element(id, text, ms)` | Wait until element appears |
 | `automator.get_interactable_elements()` | Returns optimized JSON of all visible buttons/inputs |
-| `automator.press_back()` / `_home()` | System navigation |
-| `automator.clear_logs()` | Instantly wipes the in-memory terminal |
 | `automator.get_screen_size()` | Returns `[width, height]` |
+| `automator.is_secure_window()` | Returns `True` if screen content is hidden (FLAG_SECURE) |
+
+### 📸 Screenshots
+
+| Function | Description |
+|---|---|
+| `automator.take_screenshot()` | Returns Base64-encoded JPEG of current screen |
+| `automator.save_screenshot(name)` | Saves screenshot to the scripts folder, returns the file path |
+
+### 📱 App & System Navigation
+
+| Function | Description |
+|---|---|
+| `automator.launch_app("pkg")` | Launch app by package name |
+| `automator.force_stop_app("pkg")` | Force stop an app via system settings |
+| `automator.close_app_from_recents()` | Swipes away the current app in Recents view |
+| `automator.press_back()` / `_home()` / `_recent()` | System navigation |
+
+### 🔔 Toast Capture
+
+| Function | Description |
+|---|---|
+| `automator.get_last_toast()` | Returns text of the last captured toast (status-bar notifications are ignored) |
+| `automator.get_last_toast_package()` | Returns the package name that posted the last captured toast |
+| `automator.wait_for_toast(ms, package=None)` | Blocking wait for the next toast, optionally only from the given package |
+| `automator.set_toast_filter("pkg")` | Only capture toasts from this package; `set_toast_filter(None)` captures from all apps |
+| `automator.clear_last_toast()` | Clears the stored toast text and package |
+
+### 🛠️ Utilities
+
+| Function | Description |
+|---|---|
+| `automator.clear_logs()` | Instantly wipes the in-memory terminal |
 
 ---
 
@@ -129,7 +177,7 @@ The MCP server exposes the following tools to the AI:
 
 ## 📄 License & Safety
 Provided for educational and personal automation purposes. 
-- **Privacy**: No logs are saved to disk; all script data is stored in RAM.
+- **Privacy**: The live terminal is RAM-only. Each script run is additionally saved to a timestamped log file in the `FAR_auto logs` folder (auto-pruned to the latest 50 runs).
 - **Control**: Stop any script instantly via the notification button or hardware volume keys.
 
 <p align="center">

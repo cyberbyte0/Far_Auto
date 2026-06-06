@@ -186,19 +186,40 @@ class ScriptExecutionService : Service() {
         clearLogs()
 
         val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-        
+
+        // Per-run log file: <script_name>_<yyyy-MM-dd_HH-mm-ss>.txt in the logs folder
+        var logFile: File? = null
+        var logWriter: java.io.BufferedWriter? = null
+        try {
+            val logsDir = MainActivity.getStorageDir(this, "logs")
+            pruneOldLogs(logsDir)
+            val runStamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault()).format(java.util.Date())
+            logFile = File(logsDir, "${scriptFile.name.removeSuffix(".py")}_$runStamp.txt")
+            logWriter = logFile.bufferedWriter()
+        } catch (e: Exception) {
+            Log.e("FarAuto", "Could not create run log file", e)
+        }
+
         fun log(message: String) {
             val timestamp = sdf.format(java.util.Date())
             val formattedMessage = "[$timestamp] $message"
-            
+
             Log.d("FarAuto", formattedMessage)
             synchronized(logBuffer) {
                 logBuffer.append(formattedMessage).append("\n")
                 if (logBuffer.length > 100_000) {
                     logBuffer.delete(0, 20_000)
                 }
+                try {
+                    logWriter?.apply {
+                        append(formattedMessage).append("\n")
+                        flush() // Flush per line so the log survives a kill mid-run
+                    }
+                } catch (e: Exception) {
+                    Log.e("FarAuto", "Run log write failed", e)
+                }
             }
-            
+
             updateNotification(message)
         }
 
@@ -222,7 +243,10 @@ class ScriptExecutionService : Service() {
 
             val automatorModule = py.getModule("automator")
             automatorModule?.put("current_session", executionSessionId)
-            automatorModule?.put("bridge", AutomatorBridge())
+            val automatorBridge = AutomatorBridge()
+            automatorBridge.setToastPackageFilter(null) // Filters do not persist across runs
+            automatorModule?.put("bridge", automatorBridge)
+            automatorModule?.put("scripts_dir", MainActivity.getStorageDir(this, "scripts").absolutePath)
 
             py.getModule("builtins")!!.get("exec")!!.call(
                 scriptFile.readText(),
@@ -236,6 +260,24 @@ class ScriptExecutionService : Service() {
                 log("Script Error: ${e.message}")
                 e.printStackTrace()
             }
+        } finally {
+            logFile?.let { log("Log saved: ${it.absolutePath}") }
+            try {
+                logWriter?.close()
+            } catch (e: Exception) {
+                Log.e("FarAuto", "Run log close failed", e)
+            }
+        }
+    }
+
+    private fun pruneOldLogs(logsDir: File, keep: Int = 50) {
+        try {
+            logsDir.listFiles { f -> f.isFile && f.name.endsWith(".txt") }
+                ?.sortedByDescending { it.lastModified() }
+                ?.drop(keep)
+                ?.forEach { it.delete() }
+        } catch (e: Exception) {
+            Log.e("FarAuto", "Log pruning failed", e)
         }
     }
 

@@ -45,7 +45,7 @@ def main():
             last_toast = automator.get_last_toast()
             print(f"[*] Last Toast: {last_toast or 'None'}")
             print(f"[*] Interactable elements found ({len(elements)}):")
-            print("--- Shortcuts: [b]ack, [h]ome, [rec]ent, [up]/[dw]/[lt]/[rt] ---")
+            print("--- Shortcuts: [b]ack, [h]ome, [rec]ent, [ss]hot, [close], [up]/[dw]/[lt]/[rt] ---")
             print("")
 
             for i, el in enumerate(elements, start=1):
@@ -73,6 +73,18 @@ def main():
             elif cmd == 'rec':
                 print("[+] Pressing Recent...")
                 automator.press_recent()
+                time.sleep(1.0)
+            elif cmd == 'ss':
+                print("[+] Taking Screenshot...")
+                path = automator.save_screenshot(f"ss_{int(time.time())}.jpg")
+                if path:
+                    print(f"[+] Screenshot saved to: {path}")
+                else:
+                    print("[!] Failed to save screenshot")
+                time.sleep(1.0)
+            elif cmd == 'close':
+                print("[+] Closing app from recents...")
+                automator.close_app_from_recents()
                 time.sleep(1.0)
             elif cmd in ['up', 'dw', 'lt', 'rt']:
                 perform_swipe(cmd)

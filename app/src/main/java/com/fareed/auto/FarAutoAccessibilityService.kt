@@ -1,6 +1,7 @@
 package com.fareed.auto
 
 import android.accessibilityservice.AccessibilityService
+import android.app.Notification
 import android.content.Intent
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
@@ -23,6 +24,13 @@ class FarAutoAccessibilityService : AccessibilityService() {
     @Volatile
     var lastToastText: String? = null
 
+    @Volatile
+    var lastToastPackage: String? = null
+
+    // When set, only toasts from this package are captured (null = capture from all apps)
+    @Volatile
+    var toastPackageFilter: String? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
@@ -31,12 +39,21 @@ class FarAutoAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
+            // Status-bar notifications carry a Notification payload; real toasts do not.
+            if (event.parcelableData is Notification) {
+                return
+            }
             val text = event.text?.joinToString(" ")
             val pkg = event.packageName?.toString() ?: "unknown"
-            
+
+            val filter = toastPackageFilter
+            if (filter != null && pkg != filter) {
+                return
+            }
             if (!text.isNullOrEmpty()) {
                 lastToastText = text
-                Log.i("FarAuto", "Notification Event from [$pkg]: $text")
+                lastToastPackage = pkg
+                Log.i("FarAuto", "Toast Event from [$pkg]: $text")
             }
         }
     }

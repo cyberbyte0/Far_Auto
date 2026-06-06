@@ -141,6 +141,23 @@ class AutomatorBridge {
         return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { false }
     }
 
+    fun openAppSettings(packageName: String): Boolean {
+        val future = CompletableFuture<Boolean>()
+        handler.post {
+            try {
+                val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = android.net.Uri.parse("package:$packageName")
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                service?.startActivity(intent)
+                future.complete(true)
+            } catch (e: Exception) {
+                future.complete(false)
+            }
+        }
+        return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { false }
+    }
+
     fun isSecureWindow(): Boolean {
         val future = CompletableFuture<Boolean>()
         handler.post {
@@ -163,7 +180,20 @@ class AutomatorBridge {
     }
 
     fun clearLastToast() {
-        handler.post { service?.lastToastText = null }
+        handler.post {
+            service?.lastToastText = null
+            service?.lastToastPackage = null
+        }
+    }
+
+    fun getLastToastPackage(): String? {
+        val future = CompletableFuture<String?>()
+        handler.post { future.complete(service?.lastToastPackage) }
+        return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { null }
+    }
+
+    fun setToastPackageFilter(packageName: String?) {
+        handler.post { service?.toastPackageFilter = packageName }
     }
 
     fun clearLogs() = ScriptExecutionService.clearLogs()
@@ -221,6 +251,37 @@ class AutomatorBridge {
             future.complete(json.toString())
         }
         return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { "{}" }
+    }
+
+    fun findNodes(resourceId: String?, text: String?): String {
+        val future = CompletableFuture<String>()
+        handler.post {
+            val root = service?.rootInActiveWindow ?: run {
+                future.complete("[]")
+                return@post
+            }
+            val results = mutableListOf<AccessibilityNodeInfo>()
+            if (resourceId != null) {
+                results.addAll(root.findAccessibilityNodeInfosByViewId(resourceId))
+            }
+            if (text != null) {
+                results.addAll(root.findAccessibilityNodeInfosByText(text))
+            }
+
+            val array = JSONArray()
+            val seen = mutableSetOf<String>()
+            results.forEach { node ->
+                val json = nodeToJson(node, "found", false)
+                val key = json.optString("id") + json.optString("bounds")
+                if (seen.add(key)) {
+                    array.put(json)
+                }
+                node.recycle()
+            }
+            root.recycle()
+            future.complete(array.toString())
+        }
+        return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { "[]" }
     }
 
     fun getInteractableNodes(): String {

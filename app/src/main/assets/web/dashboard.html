@@ -167,7 +167,7 @@
 
                 <div class="terminal-controls">
                     <div style="display: flex; gap: 12px;"><input type="text" id="term-input" class="input-dark" style="flex-grow: 1;" placeholder="Command input..." onkeypress="if(event.key === 'Enter') sendInput()"><button class="btn btn-primary" onclick="sendInput()">Send</button></div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;"><button class="btn btn-danger" onclick="stopCurrent()">Stop Script</button><button class="btn btn-ghost" onclick="clearLogsUI()">Clear Console</button></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;"><button class="btn btn-danger" onclick="stopCurrent()">Stop Script</button><div style="display: flex; gap: 12px;"><button class="btn btn-ghost" onclick="copyConsole()">Copy Output</button><button class="btn btn-ghost" onclick="clearConsole()">Clear Console</button></div></div>
                 </div>
             </div>
 
@@ -305,8 +305,10 @@
             api('/clear_logs');
         }
 
+        let clearGeneration = 0;
         setInterval(async () => {
             if (!currentToken) return;
+            const pollGeneration = clearGeneration;
             const res = await api('/status');
             const badge = document.getElementById('status-badge');
             if (!res) { badge.innerText = 'DISCONNECTED'; badge.style.color = 'var(--danger)'; return; }
@@ -326,6 +328,7 @@
                 const lRes = await api('/logs');
                 if (lRes && lRes.ok) {
                     const logs = await lRes.text();
+                    if (pollGeneration !== clearGeneration) return; // Console was cleared while this poll was in flight
                     if (logs.includes('FAR_AUTO_SETUP_PACKAGE_START')) {
                         const jsonStr = logs.split('FAR_AUTO_SETUP_PACKAGE_START')[1].split('FAR_AUTO_SETUP_PACKAGE_END')[0];
                         try {
@@ -350,6 +353,12 @@
         }, 1000);
 
         function clearLogsUI() { document.getElementById('log-terminal').innerText = ''; }
+        function clearConsole() { clearGeneration++; clearLogsUI(); api('/clear_logs'); }
+        function copyConsole() {
+            const text = document.getElementById('log-terminal').innerText;
+            if (!text.trim()) { alert('Console is empty'); return; }
+            copyText(text);
+        }
         function newScript() { document.getElementById('editor-filename').value = 'new.py'; if (editor) editor.setValue('# New Script\nimport automator\n', -1); switchTab('editor'); }
     </script>
 </body>

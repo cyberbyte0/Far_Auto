@@ -1,7 +1,10 @@
 import json
 import time
+import base64
+import os
 
 bridge = None # Injected by ScriptExecutionService
+scripts_dir = "." # Injected by ScriptExecutionService
 current_session = 0
 last_stopped_session = -1
 
@@ -55,13 +58,25 @@ def clear_last_toast():
     check_stop()
     bridge.clearLastToast()
 
-def wait_for_toast(timeout_ms=5000):
+def get_last_toast_package():
+    check_stop()
+    return bridge.getLastToastPackage()
+
+def set_toast_filter(package_name=None):
+    # Only capture toasts from the given package; pass None to capture from all apps
+    check_stop()
+    bridge.setToastPackageFilter(package_name)
+
+def wait_for_toast(timeout_ms=5000, package=None):
     check_stop()
     start = time.time()
     while (time.time() - start) * 1000 < timeout_ms:
         check_stop()
         toast = get_last_toast()
         if toast:
+            if package and get_last_toast_package() != package:
+                time.sleep(0.2)
+                continue
             return toast
         time.sleep(0.2)
     return None
@@ -83,6 +98,25 @@ def get_interactable_elements():
     check_stop()
     return json.loads(bridge.getInteractableNodes())
 
+def take_screenshot():
+    check_stop()
+    return bridge.takeScreenshot()
+
+def save_screenshot(filename="screenshot.jpg"):
+    check_stop()
+    data = take_screenshot()
+    if not data:
+        return False
+    try:
+        # Save to the app's script directory for easy access
+        path = os.path.join(scripts_dir, filename)
+        with open(path, "wb") as f:
+            f.write(base64.b64decode(data))
+        return path
+    except Exception as e:
+        print(f"Error saving screenshot: {e}")
+        return False
+
 def find_elements(resource_id=None, text=None):
     check_stop()
     res = bridge.findNodes(resource_id, text)
@@ -98,3 +132,36 @@ def wait_for_element(resource_id=None, text=None, timeout_ms=5000):
             return found[0]
         time.sleep(0.5)
     return None
+
+def click_element(element):
+    if not element or 'bounds' not in element:
+        return False
+    b = [int(x) for x in element['bounds'].split(',')]
+    x = (b[0] + b[2]) / 2
+    y = (b[1] + b[3]) / 2
+    return click(x, y)
+
+def force_stop_app(package_name):
+    check_stop()
+    if not bridge.openAppSettings(package_name):
+        return False
+    btn = wait_for_element(resource_id="com.android.settings:id/force_stop_button", timeout_ms=2000)
+    if not btn:
+        btn = wait_for_element(text="Force stop", timeout_ms=500)
+    if not btn:
+        btn = wait_for_element(text="FORCE STOP", timeout_ms=500)
+    if btn:
+        click_element(btn)
+        ok_btn = wait_for_element(resource_id="android:id/button1", timeout_ms=1000)
+        if ok_btn:
+            click_element(ok_btn)
+        return True
+    return False
+
+def close_app_from_recents():
+    check_stop()
+    press_recent()
+    time.sleep(1)
+    w, h = get_screen_size()
+    # Swipe up to close the current app in recents
+    return swipe(w // 2, h // 2, w // 2, h // 4, duration_ms=200)
