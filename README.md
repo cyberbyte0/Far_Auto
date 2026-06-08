@@ -61,6 +61,12 @@ Far_Auto runs as a **single process** designed for high reliability:
 │  │   UI Tree Inspection · Gesture Injection      │   │
 │  │   Double-Tap Volume Down Kill Switch          │   │
 │  └───────────────────────────────────────────────┘   │
+│                                                      │
+│  ┌───────────────────────────────────────────────┐   │
+│  │      ScreenRecordService (mediaProjection)    │   │
+│  │   MediaProjection · ScreenRecorder            │   │
+│  │   H264 video + AAC internal audio → MP4       │   │
+│  └───────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────┘
 ```
 
@@ -79,6 +85,7 @@ Launch the bundled `ui_explorer.py`. It provides a real-time interactive termina
 - `b`: Back | `h`: Home | `rec`: Recents
 - `up`/`dw`: Scroll | `lt`/`rt`: Swipe
 - `ss`: Screenshot | `close`: Close current app from Recents
+- `sr`: Start screen recording | `srs`: Stop screen recording
 - `cls`: Clear terminal | `exit`: Quit the explorer
 - `[number]`: Click a UI element or input text
 

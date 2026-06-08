@@ -20,6 +20,7 @@ Here are some common ways people use Far_Auto:
 - **Auto-Filling Forms:** Quickly fill out long forms or login screens.
 - **App Testing:** Test how your app behaves by scripting user flows.
 - **AI Research:** Let an AI read content on your phone and summarize it for you.
+- **Screen Recording:** Record the screen (with sound) straight from a script — great for capturing bug repros or demos of an automated flow.
 
 ---
 
