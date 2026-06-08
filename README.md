@@ -29,6 +29,7 @@
 - 🛡️ **Security First** — Path-traversal protection and cryptographically secure auth tokens.
 - 📦 **Backup & Import** — One-tap "Export All" to ZIP and easy script importing from device storage.
 - 🗒️ **Run Logs** — Every script run (web or app) is saved to a timestamped log file (`script_name_YYYY-MM-DD_HH-mm-ss.txt`); the latest 50 runs are kept.
+- 🎥 **Screen Recording** — Record the screen to MP4 from scripts after a one-time consent (MediaProjection).
 
 ---
 
@@ -114,6 +115,16 @@ All functions return `None`/`False` on failure and never raise exceptions into y
 |---|---|
 | `automator.take_screenshot()` | Returns Base64-encoded JPEG of current screen |
 | `automator.save_screenshot(name)` | Saves screenshot to the scripts folder, returns the file path |
+
+### 🎥 Screen Recording
+
+Requires a **one-time consent**: open **Settings → Enable Screen Recording** and approve the system prompt. Consent lasts for the app session; recordings are saved to the `FAR_auto recordings` folder. *(Phase 1: video-only. Internal-audio capture is planned.)*
+
+| Function | Description |
+|---|---|
+| `automator.is_screen_record_ready()` | `True` once screen-capture consent has been granted |
+| `automator.start_screen_record(filename=None)` | Starts recording the screen to an MP4 (auto-named if omitted). Returns `True` on start |
+| `automator.stop_screen_record()` | Stops the recording and returns the saved file path |
 
 ### 📱 App & System Navigation
 

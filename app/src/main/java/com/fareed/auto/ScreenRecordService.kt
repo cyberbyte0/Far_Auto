@@ -1,0 +1,244 @@
+package com.fareed.auto
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.media.MediaRecorder
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
+import android.os.Build
+import android.os.Handler
+import android.os.IBinder
+import android.os.Looper
+import android.util.Log
+import android.view.WindowManager
+import androidx.core.app.NotificationCompat
+import java.io.File
+
+/**
+ * Foreground service (type mediaProjection) that owns the screen-capture session.
+ *
+ * Lifecycle:
+ *  - ACTION_START_PROJECTION (from [ScreenRecordPermissionActivity]) creates and
+ *    holds a [MediaProjection]. It is kept alive for the whole session so multiple
+ *    recordings can start/stop without re-prompting for consent.
+ *  - startRecording()/stopRecording() spin a [MediaRecorder] + [VirtualDisplay] up
+ *    and down against that single projection.
+ *
+ * Phase 1: video-only (H264/MP4). Internal-audio muxing is a planned Phase 2 that
+ * stays isolated to this service.
+ */
+class ScreenRecordService : Service() {
+
+    companion object {
+        const val ACTION_START_PROJECTION = "com.fareed.auto.START_PROJECTION"
+        const val ACTION_STOP_SERVICE = "com.fareed.auto.STOP_RECORD_SERVICE"
+        const val EXTRA_RESULT_CODE = "result_code"
+        const val EXTRA_RESULT_DATA = "result_data"
+
+        private const val CHANNEL_ID = "screen_record_channel"
+        private const val NOTIFICATION_ID = 2
+
+        @Volatile
+        var instance: ScreenRecordService? = null
+            private set
+
+        /** True once consent is granted and the projection is live. */
+        fun isReady(): Boolean = instance?.mediaProjection != null
+
+        /** True while a recording is actively being written. */
+        fun isRecording(): Boolean = instance?.recording == true
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var mediaProjection: MediaProjection? = null
+    private var mediaRecorder: MediaRecorder? = null
+    private var virtualDisplay: VirtualDisplay? = null
+    private var recording = false
+    private var currentPath: String? = null
+
+    private val projectionCallback = object : MediaProjection.Callback() {
+        override fun onStop() {
+            // System or user revoked the projection — tear everything down.
+            stopRecordingInternal()
+            mediaProjection = null
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
+        createChannel()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_START_PROJECTION -> startProjection(intent)
+            ACTION_STOP_SERVICE -> {
+                stopRecordingInternal()
+                releaseProjection()
+                stopSelf()
+            }
+        }
+        return START_NOT_STICKY
+    }
+
+    private fun startProjection(intent: Intent) {
+        // The mediaProjection FGS must be foregrounded before getMediaProjection() on API 34+.
+        val notif = buildNotification("Screen recording ready")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        } else {
+            startForeground(NOTIFICATION_ID, notif)
+        }
+
+        val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, 0)
+        val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION") intent.getParcelableExtra(EXTRA_RESULT_DATA)
+        }
+        if (data == null) {
+            Log.e("FarAuto", "Screen record: missing projection token")
+            stopSelf()
+            return
+        }
+
+        val mpManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        val projection = mpManager.getMediaProjection(resultCode, data)
+        if (projection == null) {
+            Log.e("FarAuto", "Screen record: getMediaProjection returned null")
+            stopSelf()
+            return
+        }
+        projection.registerCallback(projectionCallback, handler)
+        mediaProjection = projection
+        Log.i("FarAuto", "Screen record: projection ready")
+    }
+
+    /** Starts a recording to [filename] inside the recordings dir. Runs on the main thread. */
+    fun startRecording(filename: String): Boolean {
+        val projection = mediaProjection ?: return false
+        if (recording) return false
+        try {
+            val dir = MainActivity.getStorageDir(this, "recordings")
+            val safeName = if (filename.endsWith(".mp4")) filename else "$filename.mp4"
+            val path = File(dir, safeName).absolutePath
+            val metrics = screenMetrics()
+            val width = metrics.first
+            val height = metrics.second
+            val dpi = metrics.third
+
+            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                @Suppress("DEPRECATION") MediaRecorder()
+            }
+            recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+            recorder.setVideoSize(width, height)
+            recorder.setVideoEncodingBitRate(8_000_000)
+            recorder.setVideoFrameRate(30)
+            recorder.setOutputFile(path)
+            recorder.prepare()
+
+            virtualDisplay = projection.createVirtualDisplay(
+                "FarAutoRecord",
+                width, height, dpi,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                recorder.surface, null, handler,
+            )
+            recorder.start()
+            mediaRecorder = recorder
+            recording = true
+            currentPath = path
+            Log.i("FarAuto", "Screen record: started -> $path")
+            return true
+        } catch (e: Exception) {
+            Log.e("FarAuto", "Screen record start failed", e)
+            stopRecordingInternal()
+            return false
+        }
+    }
+
+    /** Stops the active recording and returns the saved file path (keeps projection alive). */
+    fun stopRecording(): String? {
+        val path = currentPath
+        return if (stopRecordingInternal()) path else null
+    }
+
+    private fun stopRecordingInternal(): Boolean {
+        var ok = false
+        try {
+            if (recording) {
+                mediaRecorder?.stop()
+                ok = true
+            }
+        } catch (e: Exception) {
+            Log.e("FarAuto", "Screen record stop failed", e)
+        } finally {
+            try { mediaRecorder?.reset() } catch (_: Exception) {}
+            try { mediaRecorder?.release() } catch (_: Exception) {}
+            try { virtualDisplay?.release() } catch (_: Exception) {}
+            mediaRecorder = null
+            virtualDisplay = null
+            recording = false
+        }
+        return ok
+    }
+
+    private fun releaseProjection() {
+        try {
+            mediaProjection?.unregisterCallback(projectionCallback)
+            mediaProjection?.stop()
+        } catch (_: Exception) {}
+        mediaProjection = null
+    }
+
+    private fun screenMetrics(): Triple<Int, Int, Int> {
+        val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        val dpi = resources.configuration.densityDpi
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = wm.currentWindowMetrics.bounds
+            // H264 requires even dimensions.
+            Triple(bounds.width() and 1.inv(), bounds.height() and 1.inv(), dpi)
+        } else {
+            val dm = resources.displayMetrics
+            Triple(dm.widthPixels and 1.inv(), dm.heightPixels and 1.inv(), dpi)
+        }
+    }
+
+    private fun buildNotification(text: String): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Far_Auto Screen Recorder")
+            .setContentText(text)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setOngoing(true)
+            .build()
+    }
+
+    private fun createChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID, "Screen Recording", NotificationManager.IMPORTANCE_LOW,
+            )
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    override fun onDestroy() {
+        stopRecordingInternal()
+        releaseProjection()
+        instance = null
+        super.onDestroy()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+}
