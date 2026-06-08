@@ -6,7 +6,6 @@ import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
 
 /**
  * Transparent, no-UI activity whose only job is to request the MediaProjection
@@ -14,8 +13,11 @@ import androidx.appcompat.app.AppCompatActivity
  * from an Activity, so the "Enable Screen Recording" button (and any future
  * dashboard trigger) routes through here. On grant, the consent token is handed
  * to [ScreenRecordService], which holds the projection alive for the session.
+ *
+ * Extends plain [Activity] (not AppCompatActivity) so it can use a translucent,
+ * non-AppCompat theme without crashing.
  */
-class ScreenRecordPermissionActivity : AppCompatActivity() {
+class ScreenRecordPermissionActivity : Activity() {
 
     private val requestCode = 7001
 
