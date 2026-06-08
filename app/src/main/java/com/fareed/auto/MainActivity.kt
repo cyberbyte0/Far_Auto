@@ -38,15 +38,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        fun getStorageDir(context: Context, folder: String): File {
-            val root = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
+        // Single app folder on storage; subfolders: scripts, logs, files.
+        const val APP_DIR = "Far_Auto"
+
+        /** Root that holds the [APP_DIR] folder: shared storage if we have access, else app-private. */
+        fun storageRoot(context: Context): File {
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
                 Environment.getExternalStorageDirectory()
             } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R && ContextCompat.checkSelfPermission(context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
                 Environment.getExternalStorageDirectory()
             } else {
                 context.filesDir
             }
-            val dir = File(root, "FAR_auto $folder")
+        }
+
+        /** Returns (and creates) Far_Auto/<folder> — folder is "scripts", "logs", or "files". */
+        fun getStorageDir(context: Context, folder: String): File {
+            val dir = File(File(storageRoot(context), APP_DIR), folder)
             if (!dir.exists()) dir.mkdirs()
             return dir
         }
@@ -62,6 +70,7 @@ class MainActivity : AppCompatActivity() {
 
         requestBasicPermissions()
         checkAndRequestManageStorage()
+        migrateLegacyStorage()
         setupStorage()
         setupUI()
         
@@ -92,7 +101,7 @@ class MainActivity : AppCompatActivity() {
             if (!Environment.isExternalStorageManager()) {
                 AlertDialog.Builder(this)
                     .setTitle("Storage Permission Required")
-                    .setMessage("To save scripts to the public '/sdcard/FAR_auto scripts' folder, you must grant 'All files access'.")
+                    .setMessage("To save scripts to the public '/sdcard/Far_Auto' folder, you must grant 'All files access'.")
                     .setPositiveButton("Grant Access") { _, _ ->
                         try {
                             val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
@@ -205,6 +214,58 @@ class MainActivity : AppCompatActivity() {
                 "Dashboard: http://$ip:$port\nToken: ${DashboardServer.authToken}"
         } catch (e: Exception) {
             findViewById<TextView>(R.id.tvDashboardInfo).text = "Dashboard Error: ${e.message}"
+        }
+    }
+
+    /**
+     * One-time move from the old flat layout (FAR_auto scripts / FAR_auto logs /
+     * FAR_auto recordings) to Far_Auto/{scripts,logs,files}. Screenshots that lived
+     * in the old scripts folder (non-.py files) move into files/. Runs every launch
+     * but is a no-op once the old folders are gone, so no flag is needed.
+     */
+    private fun migrateLegacyStorage() {
+        try {
+            val root = storageRoot(this)
+            val oldScripts = File(root, "FAR_auto scripts")
+            val oldLogs = File(root, "FAR_auto logs")
+            val oldRecordings = File(root, "FAR_auto recordings")
+            if (!oldScripts.isDirectory && !oldLogs.isDirectory && !oldRecordings.isDirectory) return
+
+            val newScripts = getStorageDir(this, "scripts")
+            val newLogs = getStorageDir(this, "logs")
+            val newFiles = getStorageDir(this, "files")
+
+            // Old scripts folder: .py -> scripts, anything else (screenshots) -> files.
+            if (oldScripts.isDirectory) {
+                oldScripts.listFiles()?.forEach { f ->
+                    moveInto(f, if (f.isFile && f.extension.equals("py", true)) newScripts else newFiles)
+                }
+                oldScripts.delete()
+            }
+            if (oldLogs.isDirectory) {
+                oldLogs.listFiles()?.forEach { moveInto(it, newLogs) }
+                oldLogs.delete()
+            }
+            if (oldRecordings.isDirectory) {
+                oldRecordings.listFiles()?.forEach { moveInto(it, newFiles) }
+                oldRecordings.delete()
+            }
+            Log.i("FarAuto", "Storage migrated to $APP_DIR/")
+        } catch (e: Exception) {
+            Log.e("FarAuto", "Storage migration failed", e)
+        }
+    }
+
+    /** Moves [src] into [destDir], preferring a rename; never overwrites an existing file. */
+    private fun moveInto(src: File, destDir: File) {
+        val dest = File(destDir, src.name)
+        if (dest.exists()) { src.delete(); return }
+        if (src.renameTo(dest)) return
+        try {
+            src.copyTo(dest, overwrite = false)
+            src.delete()
+        } catch (e: Exception) {
+            Log.e("FarAuto", "Could not migrate ${src.name}", e)
         }
     }
 

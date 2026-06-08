@@ -121,11 +121,11 @@ All functions return `None`/`False` on failure and never raise exceptions into y
 | Function | Description |
 |---|---|
 | `automator.take_screenshot()` | Returns Base64-encoded JPEG of current screen |
-| `automator.save_screenshot(name)` | Saves screenshot to the scripts folder, returns the file path |
+| `automator.save_screenshot(name)` | Saves screenshot to the `Far_Auto/files` folder, returns the file path |
 
 ### 🎥 Screen Recording
 
-Requires a **one-time consent**: open **Settings → Enable Screen Recording**, allow the microphone prompt (needed for internal-audio capture), and approve the screen-capture prompt. Consent lasts for the app session; recordings (H264 video + AAC internal audio, muxed to MP4) are saved to the `FAR_auto recordings` folder. If the audio permission is denied — or an app marks its audio non-capturable — recording falls back to video-only.
+Requires a **one-time consent**: open **Settings → Enable Screen Recording**, allow the microphone prompt (needed for internal-audio capture), and approve the screen-capture prompt. Consent lasts for the app session; recordings (H264 video + AAC internal audio, muxed to MP4) are saved to the `Far_Auto/files` folder. If the audio permission is denied — or an app marks its audio non-capturable — recording falls back to video-only.
 
 | Function | Description |
 |---|---|
@@ -198,7 +198,7 @@ The MCP server exposes the following tools to the AI:
 
 ## 📄 License & Safety
 Provided for educational and personal automation purposes. 
-- **Privacy**: The live terminal is RAM-only. Each script run is additionally saved to a timestamped log file in the `FAR_auto logs` folder (auto-pruned to the latest 50 runs).
+- **Privacy**: The live terminal is RAM-only. Each script run is additionally saved to a timestamped log file in the `Far_Auto/logs` folder (auto-pruned to the latest 50 runs). All app data lives under a single `Far_Auto/` folder (`scripts/`, `logs/`, `files/`).
 - **Control**: Stop any script instantly via the notification button or hardware volume keys.
 
 <p align="center">
