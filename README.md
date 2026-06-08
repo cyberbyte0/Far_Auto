@@ -118,7 +118,7 @@ All functions return `None`/`False` on failure and never raise exceptions into y
 
 ### 🎥 Screen Recording
 
-Requires a **one-time consent**: open **Settings → Enable Screen Recording** and approve the system prompt. Consent lasts for the app session; recordings are saved to the `FAR_auto recordings` folder. *(Phase 1: video-only. Internal-audio capture is planned.)*
+Requires a **one-time consent**: open **Settings → Enable Screen Recording**, allow the microphone prompt (needed for internal-audio capture), and approve the screen-capture prompt. Consent lasts for the app session; recordings (H264 video + AAC internal audio, muxed to MP4) are saved to the `FAR_auto recordings` folder. If the audio permission is denied — or an app marks its audio non-capturable — recording falls back to video-only.
 
 | Function | Description |
 |---|---|

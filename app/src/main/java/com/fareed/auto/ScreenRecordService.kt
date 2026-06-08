@@ -6,10 +6,8 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
-import android.hardware.display.DisplayManager
-import android.hardware.display.VirtualDisplay
-import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -19,6 +17,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import java.io.File
 
 /**
@@ -58,8 +57,7 @@ class ScreenRecordService : Service() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var mediaProjection: MediaProjection? = null
-    private var mediaRecorder: MediaRecorder? = null
-    private var virtualDisplay: VirtualDisplay? = null
+    private var recorder: ScreenRecorder? = null
     private var recording = false
     private var currentPath: String? = null
 
@@ -130,33 +128,16 @@ class ScreenRecordService : Service() {
             val dir = MainActivity.getStorageDir(this, "recordings")
             val safeName = if (filename.endsWith(".mp4")) filename else "$filename.mp4"
             val path = File(dir, safeName).absolutePath
-            val metrics = screenMetrics()
-            val width = metrics.first
-            val height = metrics.second
-            val dpi = metrics.third
+            val (width, height, dpi) = screenMetrics()
 
-            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                MediaRecorder(this)
-            } else {
-                @Suppress("DEPRECATION") MediaRecorder()
-            }
-            recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE)
-            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-            recorder.setVideoSize(width, height)
-            recorder.setVideoEncodingBitRate(8_000_000)
-            recorder.setVideoFrameRate(30)
-            recorder.setOutputFile(path)
-            recorder.prepare()
+            // Internal audio is best-effort and only attempted if RECORD_AUDIO was granted.
+            val withAudio = ContextCompat.checkSelfPermission(
+                this, android.Manifest.permission.RECORD_AUDIO,
+            ) == PackageManager.PERMISSION_GRANTED
 
-            virtualDisplay = projection.createVirtualDisplay(
-                "FarAutoRecord",
-                width, height, dpi,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                recorder.surface, null, handler,
-            )
-            recorder.start()
-            mediaRecorder = recorder
+            val rec = ScreenRecorder(projection, width, height, dpi, path, withAudio)
+            if (!rec.start()) return false
+            recorder = rec
             recording = true
             currentPath = path
             Log.i("FarAuto", "Screen record: started -> $path")
@@ -175,23 +156,17 @@ class ScreenRecordService : Service() {
     }
 
     private fun stopRecordingInternal(): Boolean {
-        var ok = false
-        try {
-            if (recording) {
-                mediaRecorder?.stop()
-                ok = true
-            }
+        if (!recording) return false
+        return try {
+            recorder?.stop()
+            true
         } catch (e: Exception) {
             Log.e("FarAuto", "Screen record stop failed", e)
+            false
         } finally {
-            try { mediaRecorder?.reset() } catch (_: Exception) {}
-            try { mediaRecorder?.release() } catch (_: Exception) {}
-            try { virtualDisplay?.release() } catch (_: Exception) {}
-            mediaRecorder = null
-            virtualDisplay = null
+            recorder = null
             recording = false
         }
-        return ok
     }
 
     private fun releaseProjection() {

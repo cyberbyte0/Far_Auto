@@ -2,10 +2,12 @@ package com.fareed.auto
 
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 
 /**
  * Transparent, no-UI activity whose only job is to request the MediaProjection
@@ -20,9 +22,30 @@ import android.widget.Toast
 class ScreenRecordPermissionActivity : Activity() {
 
     private val requestCode = 7001
+    private val audioPermCode = 7002
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Ask for RECORD_AUDIO first (needed to capture internal audio). It's
+        // best-effort: if denied, recording proceeds video-only.
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), audioPermCode)
+        } else {
+            requestProjection()
+        }
+    }
+
+    override fun onRequestPermissionsResult(rc: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(rc, permissions, grantResults)
+        if (rc == audioPermCode) {
+            // Proceed regardless of the audio decision.
+            requestProjection()
+        }
+    }
+
+    private fun requestProjection() {
         val mpManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         try {
             startActivityForResult(mpManager.createScreenCaptureIntent(), requestCode)
