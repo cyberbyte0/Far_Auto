@@ -1,6 +1,5 @@
 package com.fareed.auto
 
-import android.hardware.display.DisplayManager
 import android.hardware.display.VirtualDisplay
 import android.media.AudioAttributes
 import android.media.AudioFormat
@@ -19,17 +18,21 @@ import java.nio.ByteBuffer
  *
  * MediaRecorder can't accept an external audio track, so this builds the pipeline
  * by hand:
- *   video: VirtualDisplay -> MediaCodec input Surface (H264) -> MediaMuxer
+ *   video: VirtualDisplay (shared) -> MediaCodec input Surface (H264) -> MediaMuxer
  *   audio: AudioRecord (AudioPlaybackCapture) -> PCM -> MediaCodec (AAC) -> MediaMuxer
+ *
+ * Android 14+ forbids calling MediaProjection.createVirtualDisplay more than once
+ * per consent, so the [VirtualDisplay] is created once by the service and shared;
+ * this class only attaches/detaches its encoder surface via setSurface().
  *
  * Two drain threads feed one [MediaMuxer]; the muxer only starts once every track
  * has reported its output format. Writes are serialized on [muxerLock].
  */
 class ScreenRecorder(
     private val projection: MediaProjection,
+    private val virtualDisplay: VirtualDisplay,
     private val width: Int,
     private val height: Int,
-    private val dpi: Int,
     private val outputPath: String,
     private val withAudio: Boolean,
 ) {
@@ -49,7 +52,6 @@ class ScreenRecorder(
     private var videoEncoder: MediaCodec? = null
     private var audioEncoder: MediaCodec? = null
     private var audioRecord: AudioRecord? = null
-    private var virtualDisplay: VirtualDisplay? = null
     private var muxer: MediaMuxer? = null
 
     private val muxerLock = Object()
@@ -81,11 +83,8 @@ class ScreenRecorder(
             vEnc.start()
             videoEncoder = vEnc
 
-            virtualDisplay = projection.createVirtualDisplay(
-                "FarAutoRecord", width, height, dpi,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                inputSurface, null, null,
-            )
+            // Attach our encoder surface to the shared VirtualDisplay (created once at consent).
+            virtualDisplay.surface = inputSurface
 
             // --- Audio encoder + playback capture (best-effort) ---
             if (withAudio && setupAudio()) {
@@ -252,7 +251,9 @@ class ScreenRecorder(
     }
 
     private fun release() {
-        try { virtualDisplay?.release() } catch (_: Exception) {}
+        // Detach (don't release) the shared VirtualDisplay before tearing down the
+        // encoder whose surface it points at — the service reuses the display.
+        try { virtualDisplay.surface = null } catch (_: Exception) {}
         try { audioRecord?.stop() } catch (_: Exception) {}
         try { audioRecord?.release() } catch (_: Exception) {}
         try { videoEncoder?.stop() } catch (_: Exception) {}
@@ -265,7 +266,6 @@ class ScreenRecorder(
         } catch (e: Exception) {
             Log.e(TAG, "Muxer stop failed", e)
         }
-        virtualDisplay = null
         audioRecord = null
         videoEncoder = null
         audioEncoder = null

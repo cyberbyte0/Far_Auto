@@ -54,14 +54,19 @@ class ScreenRecordService : Service() {
 
     private val handler = Handler(Looper.getMainLooper())
     private var mediaProjection: MediaProjection? = null
+    private var virtualDisplay: android.hardware.display.VirtualDisplay? = null
     private var recorder: ScreenRecorder? = null
     private var recording = false
     private var currentPath: String? = null
+    private var dispW = 0
+    private var dispH = 0
 
     private val projectionCallback = object : MediaProjection.Callback() {
         override fun onStop() {
             // System or user revoked the projection — tear everything down.
             stopRecordingInternal()
+            try { virtualDisplay?.release() } catch (_: Exception) {}
+            virtualDisplay = null
             mediaProjection = null
         }
     }
@@ -114,25 +119,39 @@ class ScreenRecordService : Service() {
         }
         projection.registerCallback(projectionCallback, handler)
         mediaProjection = projection
-        Log.i("FarAuto", "Screen record: projection ready")
+
+        // Android 14+ allows createVirtualDisplay only ONCE per projection. Create it
+        // here (with no surface yet) and reuse it for every recording by swapping the
+        // surface via VirtualDisplay.setSurface().
+        val (w, h, dpi) = screenMetrics()
+        dispW = w
+        dispH = h
+        virtualDisplay = projection.createVirtualDisplay(
+            "FarAutoRecord", w, h, dpi,
+            android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            null, null, handler,
+        )
+        Log.i("FarAuto", "Screen record: projection + virtual display ready (${w}x$h)")
     }
 
     /** Starts a recording to [filename] inside the recordings dir. Runs on the main thread. */
     fun startRecording(filename: String): Boolean {
         val projection = mediaProjection ?: return false
+        val display = virtualDisplay ?: return false
         if (recording) return false
         try {
             val dir = MainActivity.getStorageDir(this, "recordings")
             val safeName = if (filename.endsWith(".mp4")) filename else "$filename.mp4"
             val path = File(dir, safeName).absolutePath
-            val (width, height, dpi) = screenMetrics()
 
             // Internal audio is best-effort and only attempted if RECORD_AUDIO was granted.
             val withAudio = ContextCompat.checkSelfPermission(
                 this, android.Manifest.permission.RECORD_AUDIO,
             ) == PackageManager.PERMISSION_GRANTED
 
-            val rec = ScreenRecorder(projection, width, height, dpi, path, withAudio)
+            // Reuse the single VirtualDisplay (dims fixed at consent); recorder just
+            // attaches its encoder surface to it.
+            val rec = ScreenRecorder(projection, display, dispW, dispH, path, withAudio)
             if (!rec.start()) return false
             recorder = rec
             recording = true
@@ -167,6 +186,8 @@ class ScreenRecordService : Service() {
     }
 
     private fun releaseProjection() {
+        try { virtualDisplay?.release() } catch (_: Exception) {}
+        virtualDisplay = null
         try {
             mediaProjection?.unregisterCallback(projectionCallback)
             mediaProjection?.stop()
