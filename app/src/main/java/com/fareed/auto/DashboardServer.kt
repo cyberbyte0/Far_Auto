@@ -142,6 +142,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
             put("running", ScriptExecutionService.isRunning.get())
             put("current_script", ScriptExecutionService.currentScriptPath?.substringAfterLast("/"))
             put("accessibility_enabled", FarAutoAccessibilityService.instance != null)
+            put("recording", ScreenRecordService.isRecording())
         }
         return newFixedLengthResponse(Response.Status.OK, "application/json", status.toString())
     }

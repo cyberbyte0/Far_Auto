@@ -29,6 +29,7 @@
 - 🛡️ **Security First** — Path-traversal protection and cryptographically secure auth tokens.
 - 📦 **Backup & Import** — One-tap "Export All" to ZIP and easy script importing from device storage.
 - 🗒️ **Run Logs** — Every script run (web or app) is saved to a timestamped log file (`script_name_YYYY-MM-DD_HH-mm-ss.txt`); the latest 50 runs are kept.
+- 🎥 **Screen Recording** — Record the screen to MP4 from scripts after a one-time consent (MediaProjection).
 
 ---
 
@@ -114,6 +115,19 @@ All functions return `None`/`False` on failure and never raise exceptions into y
 |---|---|
 | `automator.take_screenshot()` | Returns Base64-encoded JPEG of current screen |
 | `automator.save_screenshot(name)` | Saves screenshot to the scripts folder, returns the file path |
+
+### 🎥 Screen Recording
+
+Requires a **one-time consent**: open **Settings → Enable Screen Recording**, allow the microphone prompt (needed for internal-audio capture), and approve the screen-capture prompt. Consent lasts for the app session; recordings (H264 video + AAC internal audio, muxed to MP4) are saved to the `FAR_auto recordings` folder. If the audio permission is denied — or an app marks its audio non-capturable — recording falls back to video-only.
+
+| Function | Description |
+|---|---|
+| `automator.is_screen_record_ready()` | `True` once screen-capture consent has been granted |
+| `automator.start_screen_record(filename=None)` | Starts recording the screen to an MP4 (auto-named if omitted). Returns `True` on start |
+| `automator.is_recording()` | `True` while a recording is actively being written |
+| `automator.stop_screen_record()` | Stops the recording and returns the saved file path |
+
+The web dashboard shows a blinking **● REC** indicator in the header whenever a recording is active.
 
 ### 📱 App & System Navigation
 

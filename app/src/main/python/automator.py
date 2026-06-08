@@ -117,6 +117,30 @@ def save_screenshot(filename="screenshot.jpg"):
         print(f"Error saving screenshot: {e}")
         return False
 
+def is_screen_record_ready():
+    # True once the user has granted screen-capture consent via the
+    # "Enable Screen Recording" button in Settings.
+    check_stop()
+    return bridge.isScreenRecordReady()
+
+def is_recording():
+    # True while a screen recording is actively being written.
+    check_stop()
+    return bridge.isScreenRecording()
+
+def start_screen_record(filename=None):
+    # Records the screen to an .mp4 in the 'FAR_auto recordings' folder.
+    # Requires consent first (see is_screen_record_ready). Returns True on start.
+    check_stop()
+    if filename is None:
+        filename = f"rec_{int(time.time())}.mp4"
+    return bridge.startScreenRecord(filename)
+
+def stop_screen_record():
+    # Stops the active recording and returns the saved file path (or None).
+    check_stop()
+    return bridge.stopScreenRecord()
+
 def find_elements(resource_id=None, text=None):
     check_stop()
     res = bridge.findNodes(resource_id, text)

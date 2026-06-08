@@ -198,6 +198,22 @@ class AutomatorBridge {
 
     fun clearLogs() = ScriptExecutionService.clearLogs()
 
+    fun isScreenRecordReady(): Boolean = ScreenRecordService.isReady()
+
+    fun isScreenRecording(): Boolean = ScreenRecordService.isRecording()
+
+    fun startScreenRecord(filename: String): Boolean {
+        val future = CompletableFuture<Boolean>()
+        handler.post { future.complete(ScreenRecordService.instance?.startRecording(filename) ?: false) }
+        return try { future.get(10, TimeUnit.SECONDS) } catch (e: Exception) { false }
+    }
+
+    fun stopScreenRecord(): String? {
+        val future = CompletableFuture<String?>()
+        handler.post { future.complete(ScreenRecordService.instance?.stopRecording()) }
+        return try { future.get(10, TimeUnit.SECONDS) } catch (e: Exception) { null }
+    }
+
     fun takeScreenshot(): String? {
         val future = CompletableFuture<String?>()
         handler.post {

@@ -213,7 +213,7 @@ class MainActivity : AppCompatActivity() {
         val systemScript = File(scriptsDir, "ui_explorer.py")
         val prefs = getSharedPreferences("settings", MODE_PRIVATE)
         val lastUpdate = prefs.getInt("system_script_version", 0)
-        val currentVersion = 5 // Added screenshot save ([ss]) and close-from-recents ([close]) shortcuts
+        val currentVersion = 6 // Added screen-record shortcuts ([sr]/[srs])
 
         if (!systemScript.exists() || lastUpdate < currentVersion) {
             restoreScript("ui_explorer.py")

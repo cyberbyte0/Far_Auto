@@ -1,17 +1,27 @@
 package com.fareed.auto
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.Button
 import android.widget.EditText
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 
 class SettingsActivity : AppCompatActivity() {
+    private lateinit var tvRecordStatus: TextView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
 
         val prefs = getSharedPreferences("settings", MODE_PRIVATE)
+
+        tvRecordStatus = findViewById(R.id.tvRecordStatus)
+        findViewById<Button>(R.id.btnEnableRecording).setOnClickListener {
+            startActivity(Intent(this, ScreenRecordPermissionActivity::class.java))
+        }
         
         val swDashboard = findViewById<SwitchCompat>(R.id.swDashboard)
         swDashboard.isChecked = prefs.getBoolean("dashboard_enabled", true)
@@ -46,6 +56,15 @@ class SettingsActivity : AppCompatActivity() {
             startForegroundService(intent)
 
             finish()
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (ScreenRecordService.isReady()) {
+            tvRecordStatus.text = "Enabled — scripts can record the screen this session."
+        } else {
+            tvRecordStatus.text = "Grant one-time consent so scripts can record the screen."
         }
     }
 }

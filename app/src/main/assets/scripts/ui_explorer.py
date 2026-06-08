@@ -45,7 +45,7 @@ def main():
             last_toast = automator.get_last_toast()
             print(f"[*] Last Toast: {last_toast or 'None'}")
             print(f"[*] Interactable elements found ({len(elements)}):")
-            print("--- Shortcuts: [b]ack, [h]ome, [rec]ent, [ss]hot, [close], [up]/[dw]/[lt]/[rt] ---")
+            print("--- Shortcuts: [b]ack, [h]ome, [rec]ent, [ss]hot, [sr]ec/[srs]top, [close], [up]/[dw]/[lt]/[rt] ---")
             print("")
 
             for i, el in enumerate(elements, start=1):
@@ -85,6 +85,24 @@ def main():
             elif cmd == 'close':
                 print("[+] Closing app from recents...")
                 automator.close_app_from_recents()
+                time.sleep(1.0)
+            elif cmd == 'sr':
+                if not automator.is_screen_record_ready():
+                    print("[!] Not enabled. Settings > Enable Screen Recording first.")
+                else:
+                    print("[+] Starting screen recording...")
+                    if automator.start_screen_record():
+                        print("[+] Recording... (use 'srs' to stop)")
+                    else:
+                        print("[!] Failed to start recording")
+                time.sleep(1.0)
+            elif cmd == 'srs':
+                print("[+] Stopping screen recording...")
+                path = automator.stop_screen_record()
+                if path:
+                    print(f"[+] Recording saved to: {path}")
+                else:
+                    print("[!] No active recording (or stop failed)")
                 time.sleep(1.0)
             elif cmd in ['up', 'dw', 'lt', 'rt']:
                 perform_swipe(cmd)
