@@ -200,6 +200,8 @@ class AutomatorBridge {
 
     fun isScreenRecordReady(): Boolean = ScreenRecordService.isReady()
 
+    fun isScreenRecording(): Boolean = ScreenRecordService.isRecording()
+
     fun startScreenRecord(filename: String): Boolean {
         val future = CompletableFuture<Boolean>()
         handler.post { future.complete(ScreenRecordService.instance?.startRecording(filename) ?: false) }

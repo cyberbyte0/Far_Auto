@@ -51,6 +51,9 @@
         .logo-group { display: flex; align-items: center; gap: 12px; }
         .logo-group h1 { font-size: 1.25rem; font-weight: 700; margin: 0; color: var(--accent); }
         .status-pill { padding: 4px 14px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
+        .rec-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; background: rgba(239, 68, 68, 0.12); color: var(--danger); border: 1px solid var(--danger); }
+        .rec-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); animation: recBlink 1s ease-in-out infinite; }
+        @keyframes recBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
 
         .auth-bar { display: flex; align-items: center; gap: 12px; }
         .input-dark { background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 10px 16px; border-radius: 10px; outline: none; font-size: 0.9rem; }
@@ -108,6 +111,7 @@
         <div class="logo-group">
             <h1>Far_Auto</h1>
             <div id="status-badge" class="status-pill">Disconnected</div>
+            <div id="rec-indicator" class="rec-pill" style="display: none;"><span class="rec-dot"></span>REC</div>
         </div>
         <div class="auth-bar">
             <div class="theme-toggle" onclick="toggleTheme()" id="theme-icon">☀️</div>
@@ -311,11 +315,14 @@
             const pollGeneration = clearGeneration;
             const res = await api('/status');
             const badge = document.getElementById('status-badge');
-            if (!res) { badge.innerText = 'DISCONNECTED'; badge.style.color = 'var(--danger)'; return; }
-            if (res.status === 401) { badge.innerText = 'UNAUTHORIZED'; badge.style.color = 'var(--danger)'; return; }
+            const recPill = document.getElementById('rec-indicator');
+            if (!res) { badge.innerText = 'DISCONNECTED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; return; }
+            if (res.status === 401) { badge.innerText = 'UNAUTHORIZED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; return; }
 
             const status = await res.json();
             const isRunning = status.running;
+
+            recPill.style.display = status.recording ? 'inline-flex' : 'none';
 
             if (!status.accessibility_enabled) { badge.innerText = 'ACCESSIBILITY OFF'; badge.style.color = 'var(--danger)'; }
             else if (isRunning) { badge.innerText = 'Running: ' + status.current_script; badge.style.color = 'var(--success)'; }

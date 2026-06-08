@@ -123,6 +123,11 @@ def is_screen_record_ready():
     check_stop()
     return bridge.isScreenRecordReady()
 
+def is_recording():
+    # True while a screen recording is actively being written.
+    check_stop()
+    return bridge.isScreenRecording()
+
 def start_screen_record(filename=None):
     # Records the screen to an .mp4 in the 'FAR_auto recordings' folder.
     # Requires consent first (see is_screen_record_ready). Returns True on start.

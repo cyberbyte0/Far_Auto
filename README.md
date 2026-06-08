@@ -124,7 +124,10 @@ Requires a **one-time consent**: open **Settings → Enable Screen Recording**, 
 |---|---|
 | `automator.is_screen_record_ready()` | `True` once screen-capture consent has been granted |
 | `automator.start_screen_record(filename=None)` | Starts recording the screen to an MP4 (auto-named if omitted). Returns `True` on start |
+| `automator.is_recording()` | `True` while a recording is actively being written |
 | `automator.stop_screen_record()` | Stops the recording and returns the saved file path |
+
+The web dashboard shows a blinking **● REC** indicator in the header whenever a recording is active.
 
 ### 📱 App & System Navigation
 
