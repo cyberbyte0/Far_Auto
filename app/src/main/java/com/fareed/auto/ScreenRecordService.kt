@@ -140,7 +140,7 @@ class ScreenRecordService : Service() {
         val display = virtualDisplay ?: return false
         if (recording) return false
         try {
-            val dir = MainActivity.getStorageDir(this, "recordings")
+            val dir = MainActivity.getStorageDir(this, "files")
             val safeName = if (filename.endsWith(".mp4")) filename else "$filename.mp4"
             val path = File(dir, safeName).absolutePath
 

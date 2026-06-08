@@ -5,6 +5,7 @@ import os
 
 bridge = None # Injected by ScriptExecutionService
 scripts_dir = "." # Injected by ScriptExecutionService
+files_dir = "." # Injected by ScriptExecutionService (screenshots, etc.)
 current_session = 0
 last_stopped_session = -1
 
@@ -108,8 +109,8 @@ def save_screenshot(filename="screenshot.jpg"):
     if not data:
         return False
     try:
-        # Save to the app's script directory for easy access
-        path = os.path.join(scripts_dir, filename)
+        # Saved into Far_Auto/files alongside screen recordings
+        path = os.path.join(files_dir, filename)
         with open(path, "wb") as f:
             f.write(base64.b64decode(data))
         return path
@@ -129,7 +130,7 @@ def is_recording():
     return bridge.isScreenRecording()
 
 def start_screen_record(filename=None):
-    # Records the screen to an .mp4 in the 'FAR_auto recordings' folder.
+    # Records the screen to an .mp4 in the 'Far_Auto/files' folder.
     # Requires consent first (see is_screen_record_ready). Returns True on start.
     check_stop()
     if filename is None:

@@ -247,6 +247,7 @@ class ScriptExecutionService : Service() {
             automatorBridge.setToastPackageFilter(null) // Filters do not persist across runs
             automatorModule?.put("bridge", automatorBridge)
             automatorModule?.put("scripts_dir", MainActivity.getStorageDir(this, "scripts").absolutePath)
+            automatorModule?.put("files_dir", MainActivity.getStorageDir(this, "files").absolutePath)
 
             py.getModule("builtins")!!.get("exec")!!.call(
                 scriptFile.readText(),
