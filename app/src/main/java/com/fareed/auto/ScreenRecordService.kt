@@ -27,11 +27,8 @@ import java.io.File
  *  - ACTION_START_PROJECTION (from [ScreenRecordPermissionActivity]) creates and
  *    holds a [MediaProjection]. It is kept alive for the whole session so multiple
  *    recordings can start/stop without re-prompting for consent.
- *  - startRecording()/stopRecording() spin a [MediaRecorder] + [VirtualDisplay] up
- *    and down against that single projection.
- *
- * Phase 1: video-only (H264/MP4). Internal-audio muxing is a planned Phase 2 that
- * stays isolated to this service.
+ *  - startRecording()/stopRecording() spin a [ScreenRecorder] (H264 video + AAC
+ *    internal audio, muxed to MP4) up and down against that single projection.
  */
 class ScreenRecordService : Service() {
 
