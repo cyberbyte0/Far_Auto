@@ -67,6 +67,7 @@ architecture.md
 /*.jpeg
 /Screenshot*.png
 /Screenshot*.jpg
+/ONBOARDING.md
 
 # ---------- Decompiled / reverse-engineering scratch ----------
 ascript_decompiled/

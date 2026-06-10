@@ -364,6 +364,9 @@ class AutomatorBridge {
         json.put("bounds", "${r.left},${r.top},${r.right},${r.bottom}")
         if (node.isClickable) json.put("clickable", true)
         if (node.isFocusable) json.put("focusable", true)
+        if (node.isCheckable) json.put("checkable", true)
+        if (node.isChecked) json.put("checked", true)
+        if (node.isSelected) json.put("selected", true)
 
         if (recursive) {
             val children = JSONArray()
