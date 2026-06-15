@@ -17,6 +17,7 @@ import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 class ScriptExecutionService : Service() {
 
@@ -27,9 +28,9 @@ class ScriptExecutionService : Service() {
         const val CHANNEL_ID = "ScriptExecutionChannel"
         const val NOTIFICATION_ID = 1
         val isRunning = AtomicBoolean(false)
-        var currentScriptPath: String? = null
-        var pythonInputBuffer: String? = null
-        var executionSessionId: Int = 0
+        @Volatile var currentScriptPath: String? = null
+        @Volatile var pythonInputBuffer: String? = null
+        val executionSessionId = AtomicInteger(0)
         private var activeThread: Thread? = null
         private val logBuffer = StringBuilder()
 
@@ -56,7 +57,7 @@ class ScriptExecutionService : Service() {
             try {
                 if (Python.isStarted()) {
                     val py = Python.getInstance()
-                    py.getModule("automator").put("last_stopped_session", executionSessionId)
+                    py.getModule("automator").put("last_stopped_session", executionSessionId.get())
                 }
             } catch (e: Exception) {}
             activeThread?.interrupt()
@@ -81,7 +82,7 @@ class ScriptExecutionService : Service() {
         server = DashboardServer(this, port)
         try {
             server?.start()
-            Log.i("FarAuto", "Dashboard Server started on port $port")
+            if (BuildConfig.DEBUG) Log.i("FarAuto", "Dashboard Server started on port $port")
         } catch (e: Exception) {
             Log.e("FarAuto", "Failed to start server", e)
         }
@@ -130,7 +131,7 @@ class ScriptExecutionService : Service() {
 
         currentScriptPath = scriptPath
         pythonInputBuffer = null
-        executionSessionId++
+        executionSessionId.incrementAndGet()
         
         acquireWakeLock()
         updateNotification("Initializing: ${scriptPath.substringAfterLast("/")}")
@@ -154,7 +155,7 @@ class ScriptExecutionService : Service() {
     private fun acquireWakeLock() {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FarAuto::ScriptWakeLock")
-        wakeLock?.acquire(10 * 60 * 1000L /*10 minutes safety timeout*/)
+        wakeLock?.acquire(8 * 60 * 60 * 1000L) // 8-hour ceiling; always released in finally when script ends
     }
 
     private fun releaseWakeLock() {
@@ -174,7 +175,7 @@ class ScriptExecutionService : Service() {
         try {
             if (Python.isStarted()) {
                 val py = Python.getInstance()
-                py.getModule("automator").put("last_stopped_session", executionSessionId)
+                py.getModule("automator").put("last_stopped_session", executionSessionId.get())
             }
         } catch (e: Exception) {}
         activeThread?.interrupt()
@@ -204,7 +205,7 @@ class ScriptExecutionService : Service() {
             val timestamp = sdf.format(java.util.Date())
             val formattedMessage = "[$timestamp] $message"
 
-            Log.d("FarAuto", formattedMessage)
+            if (BuildConfig.DEBUG) Log.d("FarAuto", formattedMessage)
             synchronized(logBuffer) {
                 logBuffer.append(formattedMessage).append("\n")
                 if (logBuffer.length > 100_000) {
@@ -242,17 +243,19 @@ class ScriptExecutionService : Service() {
             log("Starting script: ${scriptFile.name}")
 
             val automatorModule = py.getModule("automator")
-            automatorModule?.put("current_session", executionSessionId)
+            automatorModule?.put("current_session", executionSessionId.get())
             val automatorBridge = AutomatorBridge()
             automatorBridge.setToastPackageFilter(null) // Filters do not persist across runs
             automatorModule?.put("bridge", automatorBridge)
             automatorModule?.put("scripts_dir", MainActivity.getStorageDir(this, "scripts").absolutePath)
             automatorModule?.put("files_dir", MainActivity.getStorageDir(this, "files").absolutePath)
 
-            py.getModule("builtins")!!.get("exec")!!.call(
-                scriptFile.readText(),
-                py.getModule("__main__")!!.get("__dict__")
-            )
+            // exec() automatically inserts __builtins__ into freshGlobals when absent.
+            // __name__ must be set so `if __name__ == "__main__":` blocks execute correctly.
+            val builtins = py.getModule("builtins")!!
+            val freshGlobals = builtins.callAttr("dict")
+            freshGlobals.callAttr("__setitem__", "__name__", "__main__")
+            builtins.callAttr("exec", scriptFile.readText(), freshGlobals)
             log("Script finished successfully")
         } catch (e: Exception) {
             if (e.message?.contains("Script stopped") == true || e is InterruptedException) {

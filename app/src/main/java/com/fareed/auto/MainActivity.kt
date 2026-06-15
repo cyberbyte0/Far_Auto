@@ -250,7 +250,7 @@ class MainActivity : AppCompatActivity() {
                 oldRecordings.listFiles()?.forEach { moveInto(it, newFiles) }
                 oldRecordings.delete()
             }
-            Log.i("FarAuto", "Storage migrated to $APP_DIR/")
+            if (BuildConfig.DEBUG) Log.i("FarAuto", "Storage migrated to $APP_DIR/")
         } catch (e: Exception) {
             Log.e("FarAuto", "Storage migration failed", e)
         }

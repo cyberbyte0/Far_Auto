@@ -27,13 +27,15 @@ class McpActivity : AppCompatActivity() {
     private fun sendSetupToWeb() {
         val ip = getDeviceIp()
         val token = DashboardServer.authToken
+        val port = getSharedPreferences("settings", MODE_PRIVATE).getInt("dashboard_port", 8080)
         val bridgeScript = loadAsset("far_auto_mcp.py")
-        
+
         // Custom markers for the web UI to catch
         val payload = """
             FAR_AUTO_SETUP_PACKAGE_START
             {
                 "ip": "$ip",
+                "port": $port,
                 "token": "$token",
                 "script": ${JSONObject.quote(bridgeScript)},
                 "claude_config": {
@@ -41,7 +43,7 @@ class McpActivity : AppCompatActivity() {
                         "android": {
                             "command": "python3",
                             "args": ["/path/to/far_auto_mcp.py"],
-                            "env": { "DEVICE_IP": "$ip", "AUTH_TOKEN": "$token" }
+                            "env": { "DEVICE_IP": "$ip", "AUTH_TOKEN": "$token", "DEVICE_PORT": "$port" }
                         }
                     }
                 }

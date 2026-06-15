@@ -131,7 +131,7 @@ class ScreenRecordService : Service() {
             android.hardware.display.DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             null, null, handler,
         )
-        Log.i("FarAuto", "Screen record: projection + virtual display ready (${w}x$h)")
+        if (BuildConfig.DEBUG) Log.i("FarAuto", "Screen record: projection + virtual display ready (${w}x$h)")
     }
 
     /** Starts a recording to [filename] inside the recordings dir. Runs on the main thread. */
@@ -156,7 +156,7 @@ class ScreenRecordService : Service() {
             recorder = rec
             recording = true
             currentPath = path
-            Log.i("FarAuto", "Screen record: started -> $path")
+            if (BuildConfig.DEBUG) Log.i("FarAuto", "Screen record: started -> $path")
             return true
         } catch (e: Exception) {
             Log.e("FarAuto", "Screen record start failed", e)

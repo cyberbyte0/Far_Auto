@@ -21,11 +21,9 @@ class FarAutoAccessibilityService : AccessibilityService() {
         fun isRunning(): Boolean = instance != null
     }
 
+    // Both fields written as one atomic pair so readers never see a mismatched text/package.
     @Volatile
-    var lastToastText: String? = null
-
-    @Volatile
-    var lastToastPackage: String? = null
+    var lastToast: Pair<String, String>? = null // (text, package)
 
     // When set, only toasts from this package are captured (null = capture from all apps)
     @Volatile
@@ -34,7 +32,7 @@ class FarAutoAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        Log.i("FarAuto", "Accessibility Service Connected and Ready")
+        if (BuildConfig.DEBUG) Log.i("FarAuto", "Accessibility Service Connected and Ready")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -51,9 +49,8 @@ class FarAutoAccessibilityService : AccessibilityService() {
                 return
             }
             if (!text.isNullOrEmpty()) {
-                lastToastText = text
-                lastToastPackage = pkg
-                Log.i("FarAuto", "Toast Event from [$pkg]: $text")
+                lastToast = Pair(text, pkg)
+                if (BuildConfig.DEBUG) Log.i("FarAuto", "Toast Event from [$pkg]: $text")
             }
         }
     }
@@ -71,7 +68,7 @@ class FarAutoAccessibilityService : AccessibilityService() {
         if (event?.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN && event.action == KeyEvent.ACTION_DOWN) {
             val currentTime = System.currentTimeMillis()
             if (currentTime - lastVolumeDownTime < 500) {
-                Log.d("FarAuto", "Emergency Stop Triggered via Volume Keys")
+                if (BuildConfig.DEBUG) Log.d("FarAuto", "Emergency Stop Triggered via Volume Keys")
                 triggerKillSwitch()
                 return true
             }
@@ -90,6 +87,6 @@ class FarAutoAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         instance = null
-        Log.i("FarAuto", "Accessibility Service Disconnected")
+        if (BuildConfig.DEBUG) Log.i("FarAuto", "Accessibility Service Disconnected")
     }
 }

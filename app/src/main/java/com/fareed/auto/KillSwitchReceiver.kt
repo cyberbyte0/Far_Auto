@@ -9,7 +9,7 @@ import com.chaquo.python.Python
 class KillSwitchReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == "com.fareed.auto.ACTION_KILL_SCRIPT") {
-            Log.d("FarAuto", "Kill switch triggered")
+            if (BuildConfig.DEBUG) Log.d("FarAuto", "Kill switch triggered")
             ScriptExecutionService.stopScript()
         }
     }

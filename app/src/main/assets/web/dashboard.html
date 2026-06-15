@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js" integrity="sha512-oz/97HdPI510jvvYzVqE2tzz+jWpvUeVkK5OT0S2kPZOxuR+9cE8zT1V6UgwtRG71ThICBEtkPEzN5tfP/YeYw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <style>
         :root {
             /* Light Mode */
@@ -159,9 +159,10 @@
                         <ul style="font-size: 0.9rem; color: var(--text-dim);">
                             <li><b>Command:</b> <code>python3</code></li>
                             <li><b>Args:</b> <code>/path/to/far_auto_mcp.py</code></li>
-                            <li><b>Env Variables:</b> 
+                            <li><b>Env Variables:</b>
                                 <ul>
                                     <li><code>DEVICE_IP</code> = <code id="setup-ip-text" style="color: var(--accent)">127.0.0.1</code></li>
+                                    <li><code>DEVICE_PORT</code> = <code id="setup-port-text" style="color: var(--accent)">8080</code></li>
                                     <li><code>AUTH_TOKEN</code> = <code id="setup-token-text" style="color: var(--accent)">TOKEN</code></li>
                                 </ul>
                             </li>
@@ -227,10 +228,11 @@
         async function api(path, method='GET', body=null) {
             if (!currentToken) return null;
             try {
-                const url = path + (path.includes('?') ? '&' : '?') + 'token=' + currentToken;
-                const opt = { method };
-                if(body) { opt.headers = { 'Content-Type': 'application/x-www-form-urlencoded' }; opt.body = body; }
-                const res = await fetch(url, opt);
+                const headers = { 'X-Automator-Token': currentToken };
+                if (body) headers['Content-Type'] = 'application/x-www-form-urlencoded';
+                const opt = { method, headers };
+                if (body) opt.body = body;
+                const res = await fetch(path, opt);
                 if (res.status === 401) return res;
                 return res;
             } catch (e) { return null; }
@@ -238,20 +240,46 @@
 
         async function loadScripts() {
             const res = await api('/scripts');
-            if (res && res.ok) {
-                const scripts = await res.json();
-                document.getElementById('script-list').innerHTML = scripts.map(s => `
-                    <div class="script-item">
-                        <div class="script-info"><span class="script-name">${s}</span></div>
-                        <div class="script-actions">
-                            <button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.7rem;" onclick="openEditor('${s}')">Edit</button>
-                            ${s === 'ui_explorer.py' ? '' : `<button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.7rem;" onclick="renameScript('${s}')">Rename</button>`}
-                            <button class="btn btn-primary" style="padding: 6px 10px; font-size: 0.7rem;" onclick="runScript('${s}')">Run</button>
-                            <button class="btn btn-danger" style="padding: 6px 10px; font-size: 0.7rem; border:none;" onclick="${s === 'ui_explorer.py' ? `resetScript('${s}')` : `deleteScript('${s}')`}">${s === 'ui_explorer.py' ? 'Reset' : 'Del'}</button>
-                        </div>
-                    </div>
-                `).join('');
-            }
+            if (!(res && res.ok)) return;
+            const scripts = await res.json();
+            const list = document.getElementById('script-list');
+            list.innerHTML = '';
+            const BASE = 'padding: 6px 10px; font-size: 0.7rem;';
+            scripts.forEach(s => {
+                const isSystem = s === 'ui_explorer.py';
+                const item = document.createElement('div');
+                item.className = 'script-item';
+
+                const info = document.createElement('div');
+                info.className = 'script-info';
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'script-name';
+                nameSpan.textContent = s;
+                info.appendChild(nameSpan);
+
+                const actions = document.createElement('div');
+                actions.className = 'script-actions';
+
+                const mkBtn = (text, cls, style, handler) => {
+                    const b = document.createElement('button');
+                    b.className = `btn ${cls}`;
+                    b.style.cssText = style;
+                    b.textContent = text;
+                    b.addEventListener('click', handler);
+                    return b;
+                };
+
+                actions.appendChild(mkBtn('Edit', 'btn-ghost', BASE, () => openEditor(s)));
+                if (!isSystem) actions.appendChild(mkBtn('Rename', 'btn-ghost', BASE, () => renameScript(s)));
+                actions.appendChild(mkBtn('Run', 'btn-primary', BASE, () => runScript(s)));
+                actions.appendChild(isSystem
+                    ? mkBtn('Reset', 'btn-danger', BASE + ' border: none;', () => resetScript(s))
+                    : mkBtn('Del', 'btn-danger', BASE + ' border: none;', () => deleteScript(s)));
+
+                item.appendChild(info);
+                item.appendChild(actions);
+                list.appendChild(item);
+            });
         }
 
         async function openEditor(name) {
@@ -343,6 +371,7 @@
                             document.querySelector('#setup-script-code .content-text').innerText = data.script;
                             document.querySelector('#setup-claude-config .content-text').innerText = JSON.stringify(data.claude_config, null, 2);
                             document.getElementById('setup-ip-text').innerText = data.ip;
+                            document.getElementById('setup-port-text').innerText = data.port || '8080';
                             document.getElementById('setup-token-text').innerText = data.token;
                             document.getElementById('setup-overlay').style.display = 'block';
                             switchTab('terminal');
