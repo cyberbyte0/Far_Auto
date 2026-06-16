@@ -27,7 +27,7 @@
 - ⚡ **Performance Optimized** — Kotlin-side UI filtering and **In-Memory** logging for zero-lag interaction.
 - 🤖 **Live Agent Mode (MCP)** — Connect external AI models (Claude, Cursor, Cline) to control your device using the Model Context Protocol.
 - 🛡️ **Security First** — Path-traversal protection and cryptographically secure auth tokens.
-- 📦 **Backup & Import** — One-tap "Export All" to ZIP and easy script importing from device storage.
+- 📦 **Backup & Import** — Export all scripts as a ZIP and re-import `.py` or `.zip` files from both the app UI and the web console.
 - 🗒️ **Run Logs** — Every script run (web or app) is saved to a timestamped log file (`script_name_YYYY-MM-DD_HH-mm-ss.txt`); the latest 50 runs are kept.
 - 🎥 **Screen Recording** — Record the screen to MP4 from scripts after a one-time consent (MediaProjection).
 
@@ -170,6 +170,7 @@ The new web interface is a full-featured IDE and Terminal:
 - **Integrated Workflow**: "Save & Run" directly from the editor tab.
 - **Smart Console**: Automatic bottom-scrolling with manual scroll override.
 - **Management**: Rename, Reset, or Delete scripts with ease.
+- **Export / Import**: Download all scripts as a ZIP backup, or upload a `.py` file or `.zip` archive to restore scripts — no USB cable needed.
 
 ---
 
