@@ -56,6 +56,8 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
             "/script_content" -> handleGetScriptContent(session)
             "/save_script" -> handleSaveScript(session)
             "/clear_logs" -> handleClearLogs()
+            "/export_scripts" -> handleExportScripts()
+            "/import_script" -> handleImportScript(session)
             "/api/rpc" -> {
                 val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
                 if (prefs.getBoolean("mcp_enabled", true)) {
@@ -315,6 +317,70 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
             Thread.sleep(800) // Slightly longer wait for real devices
         }
         return JSONObject().apply { put("success", success) }
+    }
+
+    private fun handleExportScripts(): Response {
+        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
+        val scripts = scriptsDir.listFiles()?.filter { it.extension == "py" } ?: emptyList()
+        return try {
+            val baos = java.io.ByteArrayOutputStream()
+            java.util.zip.ZipOutputStream(baos).use { zos ->
+                for (file in scripts) {
+                    zos.putNextEntry(java.util.zip.ZipEntry(file.name))
+                    file.inputStream().use { it.copyTo(zos) }
+                    zos.closeEntry()
+                }
+            }
+            val bytes = baos.toByteArray()
+            val resp = newFixedLengthResponse(
+                Response.Status.OK,
+                "application/zip",
+                java.io.ByteArrayInputStream(bytes),
+                bytes.size.toLong(),
+            )
+            resp.addHeader("Content-Disposition", "attachment; filename=\"scripts_backup.zip\"")
+            resp
+        } catch (e: Exception) {
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"${e.message}\"}")
+        }
+    }
+
+    private fun handleImportScript(session: IHTTPSession): Response {
+        val files = HashMap<String, String>()
+        try { session.parseBody(files) } catch (e: Exception) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"parse failed\"}")
+        }
+        val tempPath = files["file"] ?: return newFixedLengthResponse(
+            Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"no file\"}"
+        )
+        val originalName = session.parms["file"] ?: "upload.py"
+        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
+        val tempFile = java.io.File(tempPath)
+        return try {
+            if (originalName.endsWith(".zip", ignoreCase = true)) {
+                var count = 0
+                java.util.zip.ZipInputStream(tempFile.inputStream()).use { zis ->
+                    var entry = zis.nextEntry
+                    while (entry != null) {
+                        if (!entry.isDirectory && entry.name.endsWith(".py", ignoreCase = true)) {
+                            val dest = getSafeFile(scriptsDir, entry.name.substringAfterLast("/"))
+                            dest.outputStream().use { zis.copyTo(it) }
+                            count++
+                        }
+                        entry = zis.nextEntry
+                    }
+                }
+                newFixedLengthResponse(Response.Status.OK, "application/json", "{\"imported\":$count}")
+            } else if (originalName.endsWith(".py", ignoreCase = true)) {
+                val dest = getSafeFile(scriptsDir, originalName)
+                tempFile.copyTo(dest, overwrite = true)
+                newFixedLengthResponse(Response.Status.OK, "application/json", "{\"imported\":1}")
+            } else {
+                newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"unsupported file type\"}")
+            }
+        } catch (e: Exception) {
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"${e.message}\"}")
+        }
     }
 
     private fun getDashboardHtml(): String {

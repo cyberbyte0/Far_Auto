@@ -121,7 +121,8 @@
     </div>
     <div class="main-content">
         <div class="panel left-panel">
-            <div class="panel-header"><h3>Scripts</h3><div style="display: flex; gap: 8px;"><button class="btn btn-ghost" style="padding: 8px" onclick="loadScripts()">↻</button><button class="btn btn-primary" onclick="newScript()">+ New</button></div></div>
+            <div class="panel-header"><h3>Scripts</h3><div style="display: flex; gap: 8px;"><button class="btn btn-ghost" style="padding: 8px" onclick="loadScripts()">↻</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="exportScripts()" title="Download all scripts as ZIP">Export</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="importScripts()" title="Upload .py or .zip">Import</button><button class="btn btn-primary" onclick="newScript()">+ New</button></div></div>
+            <input type="file" id="import-file-input" accept=".py,.zip" style="display:none" onchange="handleImportFile(event)">
             <div id="script-list"></div>
             <div style="padding: 20px; text-align: center; border-top: 1px solid var(--border); opacity: 0.6; font-size: 0.75rem; font-weight: 500; color: var(--text-dim);">Developed by Fareed</div>
         </div>
@@ -367,6 +368,46 @@
             copyText(text);
         }
         function newScript() { document.getElementById('editor-filename').value = 'new.py'; if (editor) editor.setValue('# New Script\nimport automator\n', -1); switchTab('editor'); }
+
+        async function exportScripts() {
+            if (!currentToken) { alert('Connect first'); return; }
+            try {
+                const res = await fetch('/export_scripts?token=' + encodeURIComponent(currentToken));
+                if (!res.ok) { alert('Export failed'); return; }
+                const blob = await res.blob();
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'scripts_backup.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(a.href);
+            } catch (e) { alert('Export error: ' + e.message); }
+        }
+
+        function importScripts() {
+            if (!currentToken) { alert('Connect first'); return; }
+            document.getElementById('import-file-input').click();
+        }
+
+        async function handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            event.target.value = '';
+            const formData = new FormData();
+            formData.append('file', file, file.name);
+            try {
+                const res = await fetch('/import_script?token=' + encodeURIComponent(currentToken), { method: 'POST', body: formData });
+                if (res.ok) {
+                    const data = await res.json();
+                    alert('Imported ' + data.imported + ' script(s)');
+                    loadScripts();
+                } else {
+                    const err = await res.json().catch(() => ({}));
+                    alert('Import failed: ' + (err.error || res.status));
+                }
+            } catch (e) { alert('Import error: ' + e.message); }
+        }
     </script>
 </body>
 </html>
