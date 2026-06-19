@@ -36,10 +36,15 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var adapter: ScriptAdapter
-    private val scripts = mutableListOf<File>()
+    private val scripts = mutableListOf<File>()      // displayed (filtered + sorted)
+    private val allScripts = mutableListOf<File>()   // master, unfiltered
+    private var searchQuery = ""
+    private var sortMode = SortMode.NAME_ASC
+
+    private enum class SortMode { NAME_ASC, NAME_DESC, MODIFIED_DESC, MODIFIED_ASC }
 
     private val importLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let { importScript(it) }
+        uri?.let { importFromUri(it) }
     }
 
     companion object {
@@ -342,6 +347,30 @@ class MainActivity : AppCompatActivity() {
         )
         recyclerView.adapter = adapter
 
+        findViewById<EditText>(R.id.searchInput).addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) { searchQuery = s?.toString() ?: ""; applyView() }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, count: Int, before: Int) {}
+        })
+        findViewById<View>(R.id.btnSort).setOnClickListener { v ->
+            val popup = android.widget.PopupMenu(this, v)
+            popup.menu.add(0, 0, 0, "Name (A–Z)")
+            popup.menu.add(0, 1, 1, "Name (Z–A)")
+            popup.menu.add(0, 2, 2, "Newest first")
+            popup.menu.add(0, 3, 3, "Oldest first")
+            popup.setOnMenuItemClickListener { item ->
+                sortMode = when (item.itemId) {
+                    1 -> SortMode.NAME_DESC
+                    2 -> SortMode.MODIFIED_DESC
+                    3 -> SortMode.MODIFIED_ASC
+                    else -> SortMode.NAME_ASC
+                }
+                applyView()
+                true
+            }
+            popup.show()
+        }
+
         findViewById<View>(R.id.btnRefresh).setOnClickListener { refreshScripts() }
         findViewById<View>(R.id.btnMcp).setOnClickListener {
             startActivity(Intent(this, McpActivity::class.java))
@@ -373,11 +402,12 @@ class MainActivity : AppCompatActivity() {
             closeFabMenu(btnNew, fabMenu); isMenuOpen = false; importLauncher.launch("*/*")
         }
         findViewById<View>(R.id.menuExport).setOnClickListener {
-            closeFabMenu(btnNew, fabMenu); isMenuOpen = false; exportAllScripts()
+            closeFabMenu(btnNew, fabMenu); isMenuOpen = false; chooseExport()
         }
 
         findViewById<View>(R.id.btnSelectCancel).setOnClickListener { exitSelectionMode() }
         findViewById<View>(R.id.btnSelectNext).setOnClickListener { showRunSequenceDialog() }
+        findViewById<View>(R.id.btnSelectDelete).setOnClickListener { bulkDeleteSelected() }
     }
 
     private fun enterSelectionMode() {
@@ -397,6 +427,40 @@ class MainActivity : AppCompatActivity() {
         val n = adapter.selectedOrder.size
         findViewById<TextView>(R.id.selectionCount).text = "$n selected"
         findViewById<Button>(R.id.btnSelectNext).isEnabled = n > 0
+        findViewById<View>(R.id.btnSelectDelete).apply {
+            isEnabled = n > 0
+            alpha = if (n > 0) 1f else 0.4f
+        }
+    }
+
+    private fun bulkDeleteSelected() {
+        val selected = adapter.selectedOrder.toList()
+        if (selected.isEmpty()) {
+            Toast.makeText(this, "Select scripts to delete", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val deletable = selected.filter { it.name != "ui_explorer.py" }
+        if (deletable.isEmpty()) {
+            Toast.makeText(this, "'ui_explorer.py' is a system script — use Reset instead", Toast.LENGTH_LONG).show()
+            return
+        }
+        val skipped = selected.size - deletable.size
+        val msg = buildString {
+            append("Delete ${deletable.size} script(s)? This cannot be undone.\n\n")
+            append(deletable.joinToString("\n") { "• ${it.name}" })
+            if (skipped > 0) append("\n\n('ui_explorer.py' will be skipped — it's a system script.)")
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Delete selected")
+            .setMessage(msg)
+            .setPositiveButton("Delete") { _, _ ->
+                deletable.forEach { it.delete() }
+                exitSelectionMode()
+                refreshScripts()
+                Toast.makeText(this, "Deleted ${deletable.size} script(s)", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showRunSequenceDialog() {
@@ -467,35 +531,233 @@ class MainActivity : AppCompatActivity() {
         editScript(file)
     }
 
-    private fun importScript(uri: Uri) {
+    // ---------- Import (single .py or .zip backup, with conflict resolution) ----------
+
+    private fun importFromUri(uri: Uri) {
         try {
-            val name = "imported_${System.currentTimeMillis()}.py"
-            val dest = File(getStorageDir(this, "scripts"), name)
-            contentResolver.openInputStream(uri)?.use { it.copyTo(dest.outputStream()) }
-            refreshScripts()
-        } catch (e: Exception) { Log.e("FarAuto", "Import failed", e) }
+            val name = queryDisplayName(uri) ?: "import"
+            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: run {
+                Toast.makeText(this, "Could not read file", Toast.LENGTH_SHORT).show(); return
+            }
+            val isZip = name.endsWith(".zip", true) ||
+                (bytes.size >= 2 && bytes[0] == 'P'.code.toByte() && bytes[1] == 'K'.code.toByte())
+            if (isZip) importZip(bytes) else importSinglePy(name, bytes)
+        } catch (e: Exception) {
+            Log.e("FarAuto", "Import failed", e)
+            Toast.makeText(this, "Import failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
-    private fun exportAllScripts() {
-        val zipFile = File(getExternalFilesDir("exports"), "Backup.zip")
+    private fun queryDisplayName(uri: Uri): String? = try {
+        contentResolver.query(uri, null, null, null, null)?.use { c ->
+            val idx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (idx >= 0 && c.moveToFirst()) c.getString(idx) else null
+        }
+    } catch (e: Exception) { null }
+
+    private fun importSinglePy(name: String, bytes: ByteArray) {
+        val base = if (name.endsWith(".py", true)) name.substringAfterLast('/')
+                   else "imported_${System.currentTimeMillis()}.py"
+        processIncoming(linkedMapOf(base to bytes), emptyMap(), null)
+    }
+
+    private fun importZip(bytes: ByteArray) {
+        val scriptsIn = LinkedHashMap<String, ByteArray>()
+        val logsIn = LinkedHashMap<String, ByteArray>()
+        var manifestDate: Long? = null
+        java.util.zip.ZipInputStream(java.io.ByteArrayInputStream(bytes)).use { zis ->
+            var entry = zis.nextEntry
+            while (entry != null) {
+                val entryName = entry.name
+                val base = entryName.substringAfterLast('/')
+                if (!entry.isDirectory) {
+                    when {
+                        entryName.endsWith(".py", true) -> scriptsIn[base] = zis.readBytes()
+                        entryName.startsWith("logs/") && base.isNotEmpty() -> logsIn[base] = zis.readBytes()
+                        base == "manifest.json" -> manifestDate = try {
+                            org.json.JSONObject(String(zis.readBytes())).optLong("exported_at", 0L).takeIf { it > 0 }
+                        } catch (e: Exception) { null }
+                    }
+                }
+                entry = zis.nextEntry
+            }
+        }
+        if (scriptsIn.isEmpty() && logsIn.isEmpty()) {
+            Toast.makeText(this, "No scripts found in ZIP", Toast.LENGTH_SHORT).show(); return
+        }
+        processIncoming(scriptsIn, logsIn, manifestDate)
+    }
+
+    /** Classifies incoming scripts vs. existing files and writes them, prompting on name conflicts. */
+    private fun processIncoming(scriptsIn: Map<String, ByteArray>, logsIn: Map<String, ByteArray>, manifestDate: Long?) {
+        val scriptsDir = getStorageDir(this, "scripts")
+        val added = mutableListOf<String>()
+        var unchanged = 0
+        val conflicts = mutableListOf<String>()
+        for ((base, content) in scriptsIn) {
+            val dest = File(scriptsDir, base)
+            when {
+                !dest.exists() -> added.add(base)
+                dest.readBytes().contentEquals(content) -> unchanged++
+                else -> conflicts.add(base)
+            }
+        }
+
+        val finalUnchanged = unchanged
+        val apply = { mode: String ->
+            for (base in added) File(scriptsDir, base).writeBytes(scriptsIn[base]!!)
+            var overwritten = 0
+            var copied = 0
+            for (base in conflicts) {
+                val content = scriptsIn[base]!!
+                if (mode == "copy") {
+                    uniqueCopyName(scriptsDir, base).writeBytes(content); copied++
+                } else {
+                    File(scriptsDir, base).writeBytes(content); overwritten++
+                }
+            }
+            var logsRestored = 0
+            if (logsIn.isNotEmpty()) {
+                val logsDir = getStorageDir(this, "logs")
+                for ((base, content) in logsIn) { File(logsDir, base).writeBytes(content); logsRestored++ }
+            }
+            refreshScripts()
+            showImportSummary(added.size, overwritten, copied, finalUnchanged, logsRestored, manifestDate)
+        }
+
+        if (conflicts.isEmpty()) apply("overwrite") else confirmConflicts(conflicts, apply)
+    }
+
+    private fun confirmConflicts(conflicts: List<String>, onChoice: (String) -> Unit) {
+        val list = conflicts.joinToString("\n") { "• $it" }
+        AlertDialog.Builder(this)
+            .setTitle("Import conflicts")
+            .setMessage("${conflicts.size} script(s) already exist with different content:\n\n$list\n\nWhat should happen to them?")
+            .setPositiveButton("Overwrite") { _, _ -> onChoice("overwrite") }
+            .setNegativeButton("Keep both") { _, _ -> onChoice("copy") }
+            .setNeutralButton("Cancel", null)
+            .show()
+    }
+
+    /** Next free "name (n).ext" so a kept copy never clobbers an existing file. */
+    private fun uniqueCopyName(dir: File, fileName: String): File {
+        val dot = fileName.lastIndexOf('.')
+        val base = if (dot > 0) fileName.substring(0, dot) else fileName
+        val ext = if (dot > 0) fileName.substring(dot) else ""
+        var n = 1
+        var candidate = File(dir, "$base ($n)$ext")
+        while (candidate.exists()) { n++; candidate = File(dir, "$base ($n)$ext") }
+        return candidate
+    }
+
+    private fun showImportSummary(added: Int, overwritten: Int, copied: Int, unchanged: Int, logs: Int, manifestDate: Long?) {
+        val sb = StringBuilder("• $added added")
+        if (overwritten > 0) sb.append("\n• $overwritten overwritten")
+        if (copied > 0) sb.append("\n• $copied kept as copy")
+        if (unchanged > 0) sb.append("\n• $unchanged unchanged (identical, skipped)")
+        if (logs > 0) sb.append("\n• $logs log file(s) restored")
+        if (manifestDate != null) {
+            val d = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(manifestDate))
+            sb.append("\n\nBackup from: $d")
+        }
+        AlertDialog.Builder(this).setTitle("Import complete").setMessage(sb.toString()).setPositiveButton("OK", null).show()
+    }
+
+    // ---------- Export (ZIP backup with manifest + optional logs) ----------
+
+    /** Writes a copy of [zipFile] into the public Downloads folder via MediaStore; returns the visible path or null. */
+    private fun saveToDownloads(zipFile: File): String? {
+        return try {
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Downloads.DISPLAY_NAME, zipFile.name)
+                put(android.provider.MediaStore.Downloads.MIME_TYPE, "application/zip")
+                put(android.provider.MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val itemUri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: return null
+            contentResolver.openOutputStream(itemUri)?.use { out -> zipFile.inputStream().use { it.copyTo(out) } }
+            values.clear()
+            values.put(android.provider.MediaStore.Downloads.IS_PENDING, 0)
+            contentResolver.update(itemUri, values, null, null)
+            "Downloads/${zipFile.name}"
+        } catch (e: Exception) {
+            Log.e("FarAuto", "Save to Downloads failed", e)
+            null
+        }
+    }
+
+    private fun chooseExport() {
+        AlertDialog.Builder(this)
+            .setTitle("Export backup")
+            .setItems(arrayOf("Scripts only", "Scripts + logs")) { _, which -> exportAllScripts(which == 1) }
+            .show()
+    }
+
+    private fun exportAllScripts(includeLogs: Boolean) {
+        val zipFile = File(getExternalFilesDir("exports"), "far_auto_backup.zip")
         try {
+            val scriptFiles = getStorageDir(this, "scripts").listFiles()?.filter { it.extension == "py" } ?: emptyList()
             java.util.zip.ZipOutputStream(zipFile.outputStream()).use { zos ->
-                getStorageDir(this, "scripts").listFiles()?.forEach { file ->
+                for (file in scriptFiles) {
                     zos.putNextEntry(java.util.zip.ZipEntry(file.name))
                     file.inputStream().use { it.copyTo(zos) }
                     zos.closeEntry()
                 }
+                if (includeLogs) {
+                    getStorageDir(this, "logs").listFiles()?.filter { it.isFile }?.forEach { file ->
+                        zos.putNextEntry(java.util.zip.ZipEntry("logs/${file.name}"))
+                        file.inputStream().use { it.copyTo(zos) }
+                        zos.closeEntry()
+                    }
+                }
+                val manifest = org.json.JSONObject().apply {
+                    put("app", "Far_Auto")
+                    put("manifest_version", 1)
+                    put("exported_at", System.currentTimeMillis())
+                    put("script_count", scriptFiles.size)
+                    put("scripts", org.json.JSONArray(scriptFiles.map { it.name }))
+                    put("includes_logs", includeLogs)
+                }
+                zos.putNextEntry(java.util.zip.ZipEntry("manifest.json"))
+                zos.write(manifest.toString(2).toByteArray())
+                zos.closeEntry()
             }
+            // Auto-save a visible copy to the public Downloads folder (survives uninstall, no special permission).
+            val saved = saveToDownloads(zipFile)
+            Toast.makeText(
+                this,
+                if (saved != null) "Saved to $saved" else "Saved to app storage (share to keep a copy)",
+                Toast.LENGTH_LONG,
+            ).show()
+
             val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.provider", zipFile)
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
                 type = "application/zip"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }, "Share Backup"))
-        } catch (e: Exception) { Log.e("FarAuto", "Export failed", e) }
+        } catch (e: Exception) {
+            Log.e("FarAuto", "Export failed", e)
+            Toast.makeText(this, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun refreshScripts() {
+        allScripts.clear()
+        getStorageDir(this, "scripts").listFiles()?.filter { it.extension == "py" }?.let { allScripts.addAll(it) }
+        applyView()
+    }
+
+    /** Rebuilds the displayed list from [allScripts] applying the current search query and sort. */
+    private fun applyView() {
+        val q = searchQuery.trim().lowercase()
+        val filtered = if (q.isEmpty()) allScripts else allScripts.filter { it.name.lowercase().contains(q) }
+        val sorted = when (sortMode) {
+            SortMode.NAME_ASC -> filtered.sortedBy { it.name.lowercase() }
+            SortMode.NAME_DESC -> filtered.sortedByDescending { it.name.lowercase() }
+            SortMode.MODIFIED_DESC -> filtered.sortedByDescending { it.lastModified() }
+            SortMode.MODIFIED_ASC -> filtered.sortedBy { it.lastModified() }
+        }
         scripts.clear()
-        getStorageDir(this, "scripts").listFiles()?.filter { it.extension == "py" }?.let { scripts.addAll(it) }
+        scripts.addAll(sorted)
         adapter.notifyDataSetChanged()
     }
 
@@ -536,8 +798,9 @@ class MainActivity : AppCompatActivity() {
         override fun onCreateViewHolder(parent: ViewGroup, vt: Int) = ViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_script, parent, false))
         override fun onBindViewHolder(h: ViewHolder, p: Int) {
             val f = scripts[p]
+            val isSystem = f.name == "ui_explorer.py"
             h.name.text = f.name
-            if (f.name == "ui_explorer.py") (h.btnDel as? android.widget.ImageButton)?.setImageResource(android.R.drawable.ic_menu_revert)
+            if (isSystem) (h.btnDel as? android.widget.ImageButton)?.setImageResource(android.R.drawable.ic_menu_revert)
             else (h.btnDel as? android.widget.ImageButton)?.setImageResource(android.R.drawable.ic_menu_delete)
 
             val actionVis = if (selectionMode) View.GONE else View.VISIBLE
@@ -546,7 +809,11 @@ class MainActivity : AppCompatActivity() {
             h.btnDel.visibility = actionVis
             h.check.visibility = if (selectionMode) View.VISIBLE else View.GONE
 
+            // ui_explorer.py is a system utility — not selectable for sequence runs or bulk delete.
+            if (isSystem) selectedOrder.remove(f)
             h.check.setOnCheckedChangeListener(null)
+            h.check.isEnabled = !isSystem
+            h.check.alpha = if (isSystem) 0.4f else 1f
             h.check.isChecked = selectedOrder.contains(f)
             h.check.setOnCheckedChangeListener { _, checked ->
                 if (checked) selectedOrder.add(f) else selectedOrder.remove(f)
@@ -554,7 +821,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (selectionMode) {
-                h.itemView.setOnClickListener { h.check.isChecked = !h.check.isChecked }
+                h.itemView.setOnClickListener { if (!isSystem) h.check.isChecked = !h.check.isChecked }
                 h.itemView.setOnLongClickListener(null)
             } else {
                 h.btnRun.setOnClickListener { onRun(f) }

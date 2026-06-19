@@ -5,8 +5,11 @@ import android.os.Bundle
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.chaquo.python.Python
+import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.widget.CodeEditor
 import java.io.File
 
@@ -14,6 +17,8 @@ class EditorActivity : AppCompatActivity() {
 
     private lateinit var editor: CodeEditor
     private lateinit var currentFile: File
+    private var savedContent = ""
+    private var isDirty = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -21,15 +26,24 @@ class EditorActivity : AppCompatActivity() {
 
         val path = intent.getStringExtra("FILE_PATH") ?: finish().run { return }
         currentFile = File(path)
-        
-        findViewById<TextView>(R.id.tvFileName).text = currentFile.name
 
         editor = findViewById<CodeEditor>(R.id.editor)
-        editor.setText(currentFile.readText())
-        
+        val initial = currentFile.readText()
+        editor.setText(initial)
+        savedContent = initial
         editor.isLineNumberEnabled = true
+        updateTitle()
 
-        findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
+        // Subscribed after setText so the initial load isn't counted; compares against the saved
+        // content so typing back to the original clears the dirty state too.
+        editor.subscribeEvent(ContentChangeEvent::class.java) { _, _ ->
+            setDirty(editor.text.toString() != savedContent)
+        }
+
+        findViewById<View>(R.id.btnBack).setOnClickListener { attemptExit() }
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() { attemptExit() }
+        })
 
         findViewById<View>(R.id.btnSave).setOnClickListener {
             saveFile()
@@ -45,8 +59,33 @@ class EditorActivity : AppCompatActivity() {
         }
     }
 
+    private fun updateTitle() {
+        findViewById<TextView>(R.id.tvFileName).text =
+            if (isDirty) "• ${currentFile.name}" else currentFile.name
+    }
+
+    private fun setDirty(value: Boolean) {
+        if (isDirty == value) return
+        isDirty = value
+        updateTitle()
+    }
+
+    private fun attemptExit() {
+        if (!isDirty) { finish(); return }
+        AlertDialog.Builder(this)
+            .setTitle("Unsaved changes")
+            .setMessage("You have unsaved changes. Save before leaving?")
+            .setPositiveButton("Save") { _, _ -> saveFile(); finish() }
+            .setNegativeButton("Discard") { _, _ -> finish() }
+            .setNeutralButton("Cancel", null)
+            .show()
+    }
+
     private fun saveFile() {
-        currentFile.writeText(editor.text.toString())
+        val text = editor.text.toString()
+        currentFile.writeText(text)
+        savedContent = text
+        setDirty(false)
         Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show()
     }
 

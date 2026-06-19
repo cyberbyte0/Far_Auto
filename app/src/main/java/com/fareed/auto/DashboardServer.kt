@@ -53,6 +53,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
             "/run" -> handleRunScript(session)
             "/run_batch" -> handleRunBatch(session)
             "/stop" -> handleStopScript()
+            "/skip" -> handleSkipScript()
             "/status" -> handleGetStatus()
             "/logs" -> handleGetLogs()
             "/delete" -> handleDeleteScript(session)
@@ -62,7 +63,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
             "/script_content" -> handleGetScriptContent(session)
             "/save_script" -> handleSaveScript(session)
             "/clear_logs" -> handleClearLogs()
-            "/export_scripts" -> handleExportScripts()
+            "/export_scripts" -> handleExportScripts(session)
             "/import_script" -> handleImportScript(session)
             "/api/rpc" -> {
                 val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -116,8 +117,16 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
 
     private fun handleGetScripts(): Response {
         val scriptsDir = MainActivity.getStorageDir(context, "scripts")
-        val scripts = scriptsDir.listFiles()?.filter { it.extension == "py" }?.map { it.name } ?: emptyList()
-        return newFixedLengthResponse(Response.Status.OK, "application/json", JSONArray(scripts).toString())
+        val files = scriptsDir.listFiles()?.filter { it.extension == "py" } ?: emptyList()
+        val arr = JSONArray()
+        files.sortedBy { it.name.lowercase() }.forEach { f ->
+            arr.put(JSONObject().apply {
+                put("name", f.name)
+                put("modified", f.lastModified())
+                put("size", f.length())
+            })
+        }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", arr.toString())
     }
 
     private fun handleRunScript(session: IHTTPSession): Response {
@@ -187,6 +196,11 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         val intent = Intent("com.fareed.auto.ACTION_KILL_SCRIPT").apply { setPackage(context.packageName) }
         context.sendBroadcast(intent)
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"stopped\"}")
+    }
+
+    private fun handleSkipScript(): Response {
+        ScriptExecutionService.skipCurrentScript()
+        return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"skipped\"}")
     }
 
     private fun handleGetStatus(): Response {
@@ -386,9 +400,10 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         return JSONObject().apply { put("success", success) }
     }
 
-    private fun handleExportScripts(): Response {
+    private fun handleExportScripts(session: IHTTPSession): Response {
         val scriptsDir = MainActivity.getStorageDir(context, "scripts")
         val scripts = scriptsDir.listFiles()?.filter { it.extension == "py" } ?: emptyList()
+        val includeLogs = session.parms["include_logs"] == "1"
         return try {
             val baos = java.io.ByteArrayOutputStream()
             java.util.zip.ZipOutputStream(baos).use { zos ->
@@ -397,6 +412,26 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
                     file.inputStream().use { it.copyTo(zos) }
                     zos.closeEntry()
                 }
+                if (includeLogs) {
+                    val logFiles = MainActivity.getStorageDir(context, "logs")
+                        .listFiles()?.filter { it.isFile } ?: emptyList()
+                    for (file in logFiles) {
+                        zos.putNextEntry(java.util.zip.ZipEntry("logs/${file.name}"))
+                        file.inputStream().use { it.copyTo(zos) }
+                        zos.closeEntry()
+                    }
+                }
+                val manifest = JSONObject().apply {
+                    put("app", "Far_Auto")
+                    put("manifest_version", 1)
+                    put("exported_at", System.currentTimeMillis())
+                    put("script_count", scripts.size)
+                    put("scripts", JSONArray(scripts.map { it.name }))
+                    put("includes_logs", includeLogs)
+                }
+                zos.putNextEntry(java.util.zip.ZipEntry("manifest.json"))
+                zos.write(manifest.toString(2).toByteArray())
+                zos.closeEntry()
             }
             val bytes = baos.toByteArray()
             val resp = newFixedLengthResponse(
@@ -405,11 +440,22 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
                 java.io.ByteArrayInputStream(bytes),
                 bytes.size.toLong(),
             )
-            resp.addHeader("Content-Disposition", "attachment; filename=\"scripts_backup.zip\"")
+            resp.addHeader("Content-Disposition", "attachment; filename=\"far_auto_backup.zip\"")
             resp
         } catch (e: Exception) {
             newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"${e.message}\"}")
         }
+    }
+
+    // Finds the next free "name (n).ext" in dir so an imported copy never clobbers an existing file.
+    private fun uniqueScriptName(dir: File, fileName: String): File {
+        val dot = fileName.lastIndexOf('.')
+        val base = if (dot > 0) fileName.substring(0, dot) else fileName
+        val ext = if (dot > 0) fileName.substring(dot) else ""
+        var n = 1
+        var candidate = getSafeFile(dir, "$base ($n)$ext")
+        while (candidate.exists()) { n++; candidate = getSafeFile(dir, "$base ($n)$ext") }
+        return candidate
     }
 
     private fun handleImportScript(session: IHTTPSession): Response {
@@ -421,30 +467,94 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
             Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"no file\"}"
         )
         val originalName = session.parms["file"] ?: "upload.py"
+        // mode: "detect" (classify only, write nothing), "overwrite", or "copy" (keep both)
+        val mode = session.parms["mode"] ?: "overwrite"
+        val detect = mode == "detect"
         val scriptsDir = MainActivity.getStorageDir(context, "scripts")
         val tempFile = java.io.File(tempPath)
+
+        // Classifies one incoming script and (unless detecting) writes it per the chosen mode.
+        fun handleScript(baseName: String, incoming: ByteArray, addedNames: JSONArray, unchanged: IntArray,
+                         conflictNames: JSONArray, overwrittenNames: JSONArray, copiedNames: JSONArray) {
+            val dest = getSafeFile(scriptsDir, baseName)
+            when {
+                !dest.exists() -> { addedNames.put(dest.name); if (!detect) dest.writeBytes(incoming) }
+                dest.readBytes().contentEquals(incoming) -> unchanged[0]++
+                else -> {
+                    conflictNames.put(dest.name)
+                    if (!detect) {
+                        if (mode == "copy") {
+                            val copy = uniqueScriptName(scriptsDir, dest.name)
+                            copy.writeBytes(incoming)
+                            copiedNames.put(copy.name)
+                        } else {
+                            dest.writeBytes(incoming)
+                            overwrittenNames.put(dest.name)
+                        }
+                    }
+                }
+            }
+        }
+
         return try {
+            val addedNames = JSONArray()
+            val conflictNames = JSONArray()
+            val overwrittenNames = JSONArray()
+            val copiedNames = JSONArray()
+            val unchanged = intArrayOf(0)
+            var logsRestored = 0
+            var manifest: JSONObject? = null
+
             if (originalName.endsWith(".zip", ignoreCase = true)) {
-                var count = 0
                 java.util.zip.ZipInputStream(tempFile.inputStream()).use { zis ->
                     var entry = zis.nextEntry
                     while (entry != null) {
-                        if (!entry.isDirectory && entry.name.endsWith(".py", ignoreCase = true)) {
-                            val dest = getSafeFile(scriptsDir, entry.name.substringAfterLast("/"))
-                            dest.outputStream().use { zis.copyTo(it) }
-                            count++
+                        val entryName = entry.name
+                        val baseName = entryName.substringAfterLast("/")
+                        when {
+                            entry.isDirectory -> {}
+                            entryName.endsWith(".py", ignoreCase = true) ->
+                                handleScript(baseName, zis.readBytes(), addedNames, unchanged,
+                                    conflictNames, overwrittenNames, copiedNames)
+                            entryName.startsWith("logs/") && baseName.isNotEmpty() -> {
+                                if (!detect) {
+                                    val dest = getSafeFile(MainActivity.getStorageDir(context, "logs"), baseName)
+                                    dest.outputStream().use { zis.copyTo(it) }
+                                    logsRestored++
+                                }
+                            }
+                            baseName == "manifest.json" -> {
+                                manifest = try {
+                                    JSONObject(zis.readBytes().toString(Charsets.UTF_8))
+                                } catch (e: Exception) { null }
+                            }
                         }
                         entry = zis.nextEntry
                     }
                 }
-                newFixedLengthResponse(Response.Status.OK, "application/json", "{\"imported\":$count}")
             } else if (originalName.endsWith(".py", ignoreCase = true)) {
-                val dest = getSafeFile(scriptsDir, originalName)
-                tempFile.copyTo(dest, overwrite = true)
-                newFixedLengthResponse(Response.Status.OK, "application/json", "{\"imported\":1}")
+                handleScript(originalName, tempFile.readBytes(), addedNames, unchanged,
+                    conflictNames, overwrittenNames, copiedNames)
             } else {
-                newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"unsupported file type\"}")
+                return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"unsupported file type\"}")
             }
+
+            val result = JSONObject().apply {
+                put("mode", mode)
+                put("added", addedNames.length())
+                put("added_names", addedNames)
+                put("unchanged", unchanged[0])
+                put("conflicts", conflictNames.length())
+                put("conflict_names", conflictNames)
+                put("overwritten", overwrittenNames.length())
+                put("overwritten_names", overwrittenNames)
+                put("copied", copiedNames.length())
+                put("copied_names", copiedNames)
+                put("logs_restored", logsRestored)
+                put("imported", if (detect) 0 else addedNames.length() + overwrittenNames.length() + copiedNames.length())
+                manifest?.let { put("manifest", it) }
+            }
+            newFixedLengthResponse(Response.Status.OK, "application/json", result.toString())
         } catch (e: Exception) {
             newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"${e.message}\"}")
         }

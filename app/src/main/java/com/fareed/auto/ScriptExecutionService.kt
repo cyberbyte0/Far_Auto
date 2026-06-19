@@ -34,6 +34,8 @@ class ScriptExecutionService : Service() {
         // Sequence (multi-script) progress — 1-based index and total; total > 1 means a sequence run.
         val batchIndex = AtomicInteger(0)
         @Volatile var batchTotal: Int = 0
+        // Set by "skip current script" — ends only the current script and lets the sequence advance.
+        val skipCurrent = AtomicBoolean(false)
         // Bumped on every run start; a preempted run's finally only resets shared state if it still owns the latest generation.
         private val runGeneration = AtomicInteger(0)
         private var activeThread: Thread? = null
@@ -67,6 +69,23 @@ class ScriptExecutionService : Service() {
             } catch (e: Exception) {}
             activeThread?.interrupt()
             activeThread = null
+        }
+
+        /**
+         * Ends ONLY the currently running script and lets the sequence continue with the next one.
+         * Cooperative: the current script stops at its next automator call / is_killed() check — we must
+         * not interrupt the worker thread (it also runs the batch loop) nor clear isRunning. No-op for
+         * single-script runs; use stopScript() to end the whole run.
+         */
+        fun skipCurrentScript() {
+            if (!isRunning.get() || batchTotal <= 1) return
+            skipCurrent.set(true)
+            try {
+                if (Python.isStarted()) {
+                    val py = Python.getInstance()
+                    py.getModule("automator").put("last_stopped_session", executionSessionId.get())
+                }
+            } catch (e: Exception) {}
         }
 
         private var lastNotifTime: Long = 0
@@ -215,9 +234,11 @@ class ScriptExecutionService : Service() {
             currentScriptPath = path
             batchIndex.set(i + 1)
             executionSessionId.incrementAndGet() // Per-script session so check_stop() works per script
+            skipCurrent.set(false) // fresh per script; raised by a "skip current" request mid-run
             val ok = runOneScript(path, isSequence, i + 1, paths.size)
+            val wasSkipped = skipCurrent.getAndSet(false)
             if (!isRunning.get()) break // Stopped during the script
-            if (!ok && stopOnError) break
+            if (!wasSkipped && !ok && stopOnError) break // an intentional skip never trips stop-on-error
             // Interruptible inter-script delay (skip after the last script)
             if (delayMs > 0 && i < paths.size - 1) {
                 val deadline = System.currentTimeMillis() + delayMs

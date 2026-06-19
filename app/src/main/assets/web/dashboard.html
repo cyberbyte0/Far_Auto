@@ -62,11 +62,14 @@
         .input-dark:focus { border-color: var(--accent); }
 
         .main-content { display: flex; flex-grow: 1; overflow: hidden; padding: 24px; gap: 24px; }
-        @media (max-width: 900px) { .main-content { flex-direction: column; overflow-y: auto; } .left-panel { max-width: 100% !important; min-height: 400px; } }
+        @media (max-width: 900px) { .main-content { flex-direction: column; overflow-y: auto; } .left-panel { flex-basis: auto !important; max-width: 100% !important; min-height: 400px; } .gutter { display: none; } }
 
         .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 20px; display: flex; flex-direction: column; box-shadow: var(--shadow); overflow: hidden; }
-        .left-panel { flex: 0 0 380px; }
-        .right-panel { flex: 1; position: relative; }
+        .left-panel { flex: 0 0 380px; min-width: 240px; }
+        .right-panel { flex: 1; position: relative; min-width: 0; }
+        .gutter { flex: 0 0 8px; cursor: col-resize; border-radius: 8px; align-self: stretch; position: relative; }
+        .gutter::before { content: ''; position: absolute; inset: 0 2px; border-radius: 8px; background: var(--border); transition: background 0.15s; }
+        .gutter:hover::before, .gutter.dragging::before { background: var(--accent); }
 
         .panel-header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .panel-header h3 { margin: 0; font-size: 0.875rem; font-weight: 600; text-transform: uppercase; color: var(--text-dim); }
@@ -76,6 +79,7 @@
         .btn-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid var(--danger); }
         .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
         .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .btn-trash:hover { color: var(--danger); border-color: var(--danger); }
 
         #script-list { overflow-y: auto; flex-grow: 1; padding: 12px; }
         .script-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 14px; margin-bottom: 8px; }
@@ -83,16 +87,46 @@
         .script-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
         .cbox { appearance: none; -webkit-appearance: none; margin: 0; flex-shrink: 0; width: 20px; height: 20px; border: 2px solid var(--border); border-radius: 6px; background: transparent; cursor: pointer; position: relative; transition: background 0.15s, border-color 0.15s; }
         .cbox:hover { border-color: var(--accent); }
+        .cbox:disabled { opacity: 0.35; cursor: not-allowed; }
         .cbox:checked { background: var(--accent); border-color: var(--accent); }
         .cbox:checked::after { content: ''; position: absolute; left: 6px; top: 2px; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
         .script-check { width: 20px; height: 20px; }
-        .script-name { font-weight: 600; }
-        .script-actions { display: flex; gap: 4px; opacity: 0; }
+        .script-info { min-width: 0; overflow: hidden; }
+        .script-name { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+        .script-actions { display: flex; gap: 4px; flex-shrink: 0; opacity: 0; }
         .script-item:hover .script-actions { opacity: 1; }
+        .script-meta { display: block; font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+
+        .list-toolbar { display: flex; gap: 8px; padding: 12px 16px 4px; }
+        .search-wrap { position: relative; flex: 1; min-width: 0; }
+        .search-wrap .search-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; opacity: 0.55; pointer-events: none; }
+        #script-search { width: 100%; padding: 8px 12px 8px 34px; font-size: 0.85rem; }
+        #script-sort { padding: 8px 10px; font-size: 0.8rem; cursor: pointer; flex-shrink: 0; }
+        .list-empty { text-align: center; color: var(--text-dim); font-size: 0.85rem; padding: 32px 16px; }
+
+        .menu { position: fixed; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; display: none; z-index: 300; min-width: 170px; }
+        .menu.open { display: block; }
+        .menu button { display: block; width: 100%; text-align: left; background: transparent; border: none; color: var(--text); padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 0.82rem; font-weight: 500; }
+        .menu button:hover { background: var(--accent-dim); color: var(--accent); }
+
+        .dirty-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); display: none; flex-shrink: 0; }
+        .dirty-dot.show { display: inline-block; }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: none; align-items: center; justify-content: center; z-index: 400; padding: 24px; }
+        .modal-overlay.open { display: flex; }
+        .modal-card { background: var(--panel); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); padding: 24px; max-width: 460px; width: 100%; }
+        .modal-card h3 { margin: 0 0 6px; font-size: 1.05rem; color: var(--text); }
+        .modal-card p { margin: 0 0 12px; color: var(--text-dim); font-size: 0.88rem; }
+        .conflict-list { max-height: 200px; overflow-y: auto; background: var(--input-bg); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; margin-bottom: 18px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
+        .conflict-list div { padding: 3px 0; color: var(--text); word-break: break-all; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 
         #queue-panel { border-top: 1px solid var(--border); padding: 12px 16px; max-height: 45%; overflow-y: auto; }
         #queue-panel h4 { margin: 0 0 8px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-dim); }
-        .queue-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 8px; background: var(--accent-dim); margin-bottom: 6px; font-size: 0.8rem; }
+        .queue-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 8px; background: var(--accent-dim); margin-bottom: 6px; font-size: 0.8rem; cursor: grab; }
+        .queue-row.dragging { opacity: 0.4; cursor: grabbing; }
+        .queue-row.drag-over { outline: 2px dashed var(--accent); outline-offset: -2px; }
+        .queue-row .q-grip { color: var(--text-dim); font-size: 0.95rem; line-height: 1; user-select: none; cursor: grab; }
         .queue-row .q-idx { color: var(--text-dim); font-weight: 700; }
         .queue-row .q-name { flex-grow: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .queue-row button { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 6px; cursor: pointer; padding: 2px 8px; font-size: 0.8rem; line-height: 1.2; }
@@ -142,8 +176,17 @@
     </div>
     <div class="main-content">
         <div class="panel left-panel">
-            <div class="panel-header"><h3>Scripts</h3><div style="display: flex; gap: 8px;"><button class="btn btn-ghost" style="padding: 8px" onclick="loadScripts()">↻</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="exportScripts()" title="Download all scripts as ZIP">Export</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="importScripts()" title="Upload .py or .zip">Import</button><button class="btn btn-primary" onclick="newScript()">+ New</button></div></div>
+            <div class="panel-header"><h3>Scripts</h3><div style="display: flex; gap: 8px;"><button class="btn btn-ghost btn-trash" style="padding: 8px" onclick="bulkDelete()" title="Delete selected scripts"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button><button class="btn btn-ghost" style="padding: 8px" onclick="loadScripts()">↻</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="toggleExportMenu(event)" title="Download backup ZIP">Export ▾</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="importScripts()" title="Upload .py or .zip">Import</button><button class="btn btn-primary" onclick="newScript()">+ New</button></div></div>
             <input type="file" id="import-file-input" accept=".py,.zip" style="display:none" onchange="handleImportFile(event)">
+            <div class="list-toolbar">
+                <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="script-search" class="input-dark" placeholder="Search scripts…" oninput="renderScriptList()"></div>
+                <select id="script-sort" class="input-dark" onchange="renderScriptList()" title="Sort scripts">
+                    <option value="name-asc">A–Z</option>
+                    <option value="name-desc">Z–A</option>
+                    <option value="modified-desc">Newest</option>
+                    <option value="modified-asc">Oldest</option>
+                </select>
+            </div>
             <div id="script-list"></div>
             <div id="queue-panel" style="display: none;">
                 <h4>Run Queue (<span id="queue-count">0</span>)</h4>
@@ -159,6 +202,7 @@
             </div>
             <div style="padding: 20px; text-align: center; border-top: 1px solid var(--border); opacity: 0.6; font-size: 0.75rem; font-weight: 500; color: var(--text-dim);">Developed by Fareed</div>
         </div>
+        <div class="gutter" id="gutter" title="Drag to resize"></div>
         <div class="panel right-panel">
             <div class="tabs"><button id="tab-terminal" class="tab-btn active" onclick="switchTab('terminal')">Terminal</button><button id="tab-editor" class="tab-btn" onclick="switchTab('editor')">Editor</button></div>
 
@@ -206,23 +250,50 @@
 
                 <div class="terminal-controls">
                     <div style="display: flex; gap: 12px;"><input type="text" id="term-input" class="input-dark" style="flex-grow: 1;" placeholder="Command input..." onkeypress="if(event.key === 'Enter') sendInput()"><button class="btn btn-primary" onclick="sendInput()">Send</button></div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;"><button class="btn btn-danger" onclick="stopCurrent()">Stop Script</button><div style="display: flex; gap: 12px;"><button class="btn btn-ghost" onclick="copyConsole()">Copy Output</button><button class="btn btn-ghost" onclick="clearConsole()">Clear Console</button></div></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;"><div style="display: flex; gap: 12px;"><button class="btn btn-danger" onclick="stopCurrent()" title="Stop everything (ends the whole sequence)">Stop Script</button><button id="btn-skip" class="btn btn-ghost" style="display:none; border-color: var(--accent); color: var(--accent);" onclick="skipCurrent()" title="End the current script and continue with the next in the sequence">⏭ Skip Current</button></div><div style="display: flex; gap: 12px;"><button class="btn btn-ghost" onclick="copyConsole()">Copy Output</button><button class="btn btn-ghost" onclick="clearConsole()">Clear Console</button></div></div>
                 </div>
             </div>
 
             <div id="editor-container">
                 <div id="ace-editor"></div>
                 <div class="editor-footer">
-                    <div style="display: flex; align-items: center; gap: 12px;"><span style="font-size: 0.875rem; font-weight: 600; color: var(--text-dim);">File:</span><input type="text" id="editor-filename" class="input-dark" style="width: 180px; padding: 6px 12px;" placeholder="name.py"></div>
+                    <div style="display: flex; align-items: center; gap: 12px;"><span style="font-size: 0.875rem; font-weight: 600; color: var(--text-dim);">File:</span><span id="dirty-dot" class="dirty-dot" title="Unsaved changes"></span><input type="text" id="editor-filename" class="input-dark" style="width: 180px; padding: 6px 12px;" placeholder="name.py"></div>
                     <div style="display: flex; gap: 12px;"><button class="btn btn-ghost" onclick="saveScript()">Save</button><button class="btn btn-primary" onclick="saveAndRun()">Save & Run</button></div>
                 </div>
+            </div>
+        </div>
+    </div>
+    <div class="menu" id="export-menu">
+        <button onclick="exportScripts(false)">📄 Scripts only</button>
+        <button onclick="exportScripts(true)">🗂️ Scripts + logs</button>
+    </div>
+    <div class="modal-overlay" id="conflict-modal">
+        <div class="modal-card">
+            <h3>Import conflicts</h3>
+            <p id="conflict-msg"></p>
+            <div class="conflict-list" id="conflict-list"></div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" data-choice="cancel">Cancel</button>
+                <button class="btn btn-ghost" data-choice="copy">Keep both</button>
+                <button class="btn btn-primary" data-choice="overwrite">Overwrite</button>
             </div>
         </div>
     </div>
     <script>
         let currentToken = localStorage.getItem('auto_token') || '';
         document.getElementById('token-input').value = currentToken;
-        let editor, lastScriptState = false, stopPollingTimer = null;
+        let editor, lastScriptState = false, stopPollingTimer = null, editorDirty = false;
+
+        function setDirty(d) {
+            editorDirty = d;
+            const dot = document.getElementById('dirty-dot');
+            if (dot) dot.classList.toggle('show', d);
+        }
+        function confirmDiscard() {
+            return !editorDirty || confirm('You have unsaved changes in the editor. Discard them?');
+        }
+        // Guards a browser refresh / tab close (the only "close" paths in this single-page UI)
+        window.addEventListener('beforeunload', (e) => { if (editorDirty) { e.preventDefault(); e.returnValue = ''; } });
 
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
@@ -245,6 +316,12 @@
                 editor = ace.edit("ace-editor");
                 editor.session.setMode("ace/mode/python");
                 editor.setOptions({ fontSize: "14px", showPrintMargin: false });
+                editor.commands.addCommand({
+                    name: 'saveFile',
+                    bindKey: { win: 'Ctrl-S', mac: 'Command-S' },
+                    exec: () => saveScript(true),
+                });
+                editor.on('change', () => setDirty(true));
                 applyTheme(savedTheme);
             } catch(e) {}
             if(currentToken) loadScripts();
@@ -272,17 +349,56 @@
             } catch (e) { return null; }
         }
 
+        let scriptsMeta = [];
+
         async function loadScripts() {
             const res = await api('/scripts');
             if (!(res && res.ok)) return;
-            const scripts = await res.json();
-            availableScripts = scripts;
+            const data = await res.json();
+            // Accept both the legacy string[] shape and the richer {name,modified,size}[] shape
+            scriptsMeta = data.map(x => typeof x === 'string' ? { name: x, modified: 0, size: 0 } : x);
+            availableScripts = scriptsMeta.map(s => s.name);
             // Drop any queued scripts that no longer exist
-            queue = queue.filter(n => scripts.includes(n));
+            queue = queue.filter(n => availableScripts.includes(n));
+            renderScriptList();
+            renderQueue();
+        }
+
+        function formatWhen(ts) {
+            if (!ts) return '';
+            try {
+                const d = new Date(ts), diff = (Date.now() - ts) / 1000;
+                if (diff < 60) return 'just now';
+                if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+                if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+                if (diff < 604800) return Math.floor(diff / 86400) + 'd ago';
+                return d.toLocaleDateString();
+            } catch (e) { return ''; }
+        }
+
+        function renderScriptList() {
+            const term = (document.getElementById('script-search')?.value || '').trim().toLowerCase();
+            const sort = document.getElementById('script-sort')?.value || 'name-asc';
+            const items = scriptsMeta.filter(s => s.name.toLowerCase().includes(term)).sort((a, b) => {
+                switch (sort) {
+                    case 'name-desc': return b.name.toLowerCase().localeCompare(a.name.toLowerCase());
+                    case 'modified-desc': return (b.modified || 0) - (a.modified || 0);
+                    case 'modified-asc': return (a.modified || 0) - (b.modified || 0);
+                    default: return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+                }
+            });
             const list = document.getElementById('script-list');
             list.innerHTML = '';
+            if (items.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'list-empty';
+                empty.textContent = term ? 'No scripts match your search' : 'No scripts yet';
+                list.appendChild(empty);
+                return;
+            }
             const BASE = 'padding: 6px 10px; font-size: 0.7rem;';
-            scripts.forEach(s => {
+            items.forEach(meta => {
+                const s = meta.name;
                 const isSystem = s === 'ui_explorer.py';
                 const item = document.createElement('div');
                 item.className = 'script-item';
@@ -294,7 +410,9 @@
                 check.type = 'checkbox';
                 check.className = 'cbox script-check';
                 check.checked = queue.includes(s);
-                check.title = 'Add to run queue';
+                check.dataset.name = s;
+                check.disabled = isSystem; // system utility — not addable to run queue or bulk delete
+                check.title = isSystem ? 'System script — cannot be queued or deleted' : 'Select — for run queue or bulk delete';
                 check.addEventListener('change', () => toggleQueue(s, check.checked));
 
                 const info = document.createElement('div');
@@ -302,7 +420,15 @@
                 const nameSpan = document.createElement('span');
                 nameSpan.className = 'script-name';
                 nameSpan.textContent = s;
+                nameSpan.title = s;
                 info.appendChild(nameSpan);
+                const when = formatWhen(meta.modified);
+                if (when) {
+                    const metaSpan = document.createElement('span');
+                    metaSpan.className = 'script-meta';
+                    metaSpan.textContent = when;
+                    info.appendChild(metaSpan);
+                }
                 left.appendChild(check);
                 left.appendChild(info);
 
@@ -329,12 +455,12 @@
                 item.appendChild(actions);
                 list.appendChild(item);
             });
-            renderQueue();
         }
 
         // ---- Run Queue (multi-script sequence) ----
         let queue = [];
         let availableScripts = [];
+        let queueDragFrom = null;
 
         function toggleQueue(name, on) {
             if (on) { if (!queue.includes(name)) queue.push(name); }
@@ -351,9 +477,8 @@
 
         function removeFromQueue(name) {
             queue = queue.filter(n => n !== name);
-            const list = document.getElementById('script-list');
-            list.querySelectorAll('.script-check').forEach((c, idx) => {
-                if (availableScripts[idx] === name) c.checked = false;
+            document.querySelectorAll('.script-check').forEach(c => {
+                if (c.dataset.name === name) c.checked = false;
             });
             renderQueue();
         }
@@ -374,6 +499,11 @@
             queue.forEach((name, i) => {
                 const row = document.createElement('div');
                 row.className = 'queue-row';
+                row.draggable = true;
+                const grip = document.createElement('span');
+                grip.className = 'q-grip';
+                grip.textContent = '⠿';
+                grip.title = 'Drag to reorder';
                 const idx = document.createElement('span');
                 idx.className = 'q-idx';
                 idx.textContent = (i + 1) + '.';
@@ -386,6 +516,24 @@
                     b.addEventListener('click', handler);
                     return b;
                 };
+                row.addEventListener('dragstart', (e) => { queueDragFrom = i; row.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+                row.addEventListener('dragend', () => { queueDragFrom = null; list.querySelectorAll('.queue-row').forEach(r => r.classList.remove('dragging', 'drag-over')); });
+                row.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (queueDragFrom === null || queueDragFrom === i) return;
+                    list.querySelectorAll('.queue-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+                    row.classList.add('drag-over');
+                });
+                row.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    if (queueDragFrom === null || queueDragFrom === i) return;
+                    const [moved] = queue.splice(queueDragFrom, 1);
+                    queue.splice(i, 0, moved);
+                    queueDragFrom = null;
+                    renderQueue();
+                });
+                row.appendChild(grip);
                 row.appendChild(idx);
                 row.appendChild(nm);
                 row.appendChild(mk('▲', () => moveInQueue(i, -1), i === 0));
@@ -412,8 +560,9 @@
         }
 
         async function openEditor(name) {
+            if (!confirmDiscard()) return;
             const res = await api('/script_content?name=' + encodeURIComponent(name));
-            if (res && res.ok) { document.getElementById('editor-filename').value = name; editor.setValue(await res.text(), -1); switchTab('editor'); }
+            if (res && res.ok) { document.getElementById('editor-filename').value = name; editor.setValue(await res.text(), -1); setDirty(false); switchTab('editor'); }
         }
 
         async function saveScript(quiet = false) {
@@ -421,16 +570,38 @@
             if (!name) return false;
             const fullName = name.endsWith('.py') ? name : name + '.py';
             const res = await api('/save_script?name=' + encodeURIComponent(fullName), 'POST', 'postData=' + encodeURIComponent(editor.getValue()));
-            if (res && res.ok) { loadScripts(); if (!quiet) alert('Saved'); return true; }
+            if (res && res.ok) { setDirty(false); loadScripts(); if (!quiet) alert('Saved'); return true; }
             return false;
         }
 
         async function saveAndRun() { if (await saveScript(true)) runScript(document.getElementById('editor-filename').value.trim()); }
         async function runScript(name) { const res = await api('/run?name=' + encodeURIComponent(name), 'POST'); if (res && res.ok) { switchTab('terminal'); document.getElementById('log-terminal').innerText = 'Starting...'; } }
         async function stopCurrent() { await api('/stop', 'POST'); }
-        async function deleteScript(name) { if (confirm('Delete?')) { await api('/delete?name=' + name, 'POST'); loadScripts(); } }
-        async function resetScript(name) { if (confirm('Reset?')) { await api('/reset?name=' + name, 'POST'); loadScripts(); } }
-        async function renameScript(o) { const n = prompt('New name:', o); if (n && n !== o) { await api(`/rename?old_name=${o}&new_name=${n}`, 'POST'); loadScripts(); } }
+        async function skipCurrent() { await api('/skip', 'POST'); }
+        async function deleteScript(name) { if (confirm('Delete?')) { await api('/delete?name=' + encodeURIComponent(name), 'POST'); loadScripts(); } }
+        async function bulkDelete() {
+            const selected = queue.slice();
+            if (selected.length === 0) {
+                alert('Select one or more scripts using the checkboxes, then click the bin to delete them.');
+                return;
+            }
+            const deletable = selected.filter(n => n !== 'ui_explorer.py');
+            const skipped = selected.filter(n => n === 'ui_explorer.py');
+            if (deletable.length === 0) {
+                alert('“ui_explorer.py” is a system script and can’t be deleted — use Reset instead.');
+                return;
+            }
+            let msg = 'Delete ' + deletable.length + ' selected script(s)? This cannot be undone.\n\n    – ' + deletable.join('\n    – ');
+            if (skipped.length) msg += '\n\n(“ui_explorer.py” will be skipped — it’s a system script.)';
+            if (!confirm(msg)) return;
+            for (const name of deletable) {
+                await api('/delete?name=' + encodeURIComponent(name), 'POST');
+            }
+            queue = [];
+            loadScripts();
+        }
+        async function resetScript(name) { if (confirm('Reset?')) { await api('/reset?name=' + encodeURIComponent(name), 'POST'); loadScripts(); } }
+        async function renameScript(o) { const n = prompt('New name:', o); if (n && n !== o) { await api(`/rename?old_name=${encodeURIComponent(o)}&new_name=${encodeURIComponent(n)}`, 'POST'); loadScripts(); } }
         async function sendInput() { const i = document.getElementById('term-input'); await api('/input?data=' + encodeURIComponent(i.value), 'POST'); document.getElementById('log-terminal').innerText = '> ' + i.value + '\n(Sent)'; i.value = ''; }
 
         function copyText(txt) {
@@ -474,8 +645,9 @@
             const badge = document.getElementById('status-badge');
             const recPill = document.getElementById('rec-indicator');
             const seqPill = document.getElementById('seq-indicator');
-            if (!res) { badge.innerText = 'DISCONNECTED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; seqPill.style.display = 'none'; return; }
-            if (res.status === 401) { badge.innerText = 'UNAUTHORIZED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; seqPill.style.display = 'none'; return; }
+            const skipBtn = document.getElementById('btn-skip');
+            if (!res) { badge.innerText = 'DISCONNECTED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; seqPill.style.display = 'none'; skipBtn.style.display = 'none'; return; }
+            if (res.status === 401) { badge.innerText = 'UNAUTHORIZED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; seqPill.style.display = 'none'; skipBtn.style.display = 'none'; return; }
 
             const status = await res.json();
             const isRunning = status.running;
@@ -483,6 +655,7 @@
 
             recPill.style.display = status.recording ? 'inline-flex' : 'none';
             seqPill.style.display = inSequence ? 'inline-flex' : 'none';
+            skipBtn.style.display = inSequence ? 'inline-flex' : 'none';
             if (inSequence) document.getElementById('seq-text').textContent = 'SEQ ' + status.batch_index + '/' + status.batch_total;
 
             if (!status.accessibility_enabled) { badge.innerText = 'ACCESSIBILITY OFF'; badge.style.color = 'var(--danger)'; }
@@ -529,17 +702,29 @@
             if (!text.trim()) { alert('Console is empty'); return; }
             copyText(text);
         }
-        function newScript() { document.getElementById('editor-filename').value = 'new.py'; if (editor) editor.setValue('# New Script\nimport automator\n', -1); switchTab('editor'); }
+        function newScript() { if (!confirmDiscard()) return; document.getElementById('editor-filename').value = 'new.py'; if (editor) { editor.setValue('# New Script\nimport automator\n', -1); setDirty(false); } switchTab('editor'); }
 
-        async function exportScripts() {
+        function toggleExportMenu(e) {
+            e.stopPropagation();
+            if (!currentToken) { alert('Connect first'); return; }
+            const menu = document.getElementById('export-menu');
+            const r = e.currentTarget.getBoundingClientRect();
+            menu.style.top = (r.bottom + 6) + 'px';
+            menu.style.right = (window.innerWidth - r.right) + 'px';
+            menu.classList.toggle('open');
+        }
+        document.addEventListener('click', () => { const m = document.getElementById('export-menu'); if (m) m.classList.remove('open'); });
+
+        async function exportScripts(includeLogs = false) {
+            document.getElementById('export-menu')?.classList.remove('open');
             if (!currentToken) { alert('Connect first'); return; }
             try {
-                const res = await fetch('/export_scripts?token=' + encodeURIComponent(currentToken));
+                const res = await fetch('/export_scripts' + (includeLogs ? '?include_logs=1' : ''), { headers: { 'X-Automator-Token': currentToken } });
                 if (!res.ok) { alert('Export failed'); return; }
                 const blob = await res.blob();
                 const a = document.createElement('a');
                 a.href = URL.createObjectURL(blob);
-                a.download = 'scripts_backup.zip';
+                a.download = 'far_auto_backup.zip';
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -552,24 +737,106 @@
             document.getElementById('import-file-input').click();
         }
 
+        async function importRequest(file, mode) {
+            const fd = new FormData();
+            fd.append('file', file, file.name);
+            try {
+                const res = await fetch('/import_script?mode=' + mode, { method: 'POST', headers: { 'X-Automator-Token': currentToken }, body: fd });
+                if (res.ok) return await res.json();
+                const err = await res.json().catch(() => ({}));
+                alert('Import failed: ' + (err.error || res.status));
+                return null;
+            } catch (e) { alert('Import error: ' + e.message); return null; }
+        }
+
+        function askConflictChoice(conflicts) {
+            return new Promise(resolve => {
+                const modal = document.getElementById('conflict-modal');
+                document.getElementById('conflict-msg').textContent =
+                    conflicts.length + ' script(s) already exist with different content. What should happen to them?';
+                const list = document.getElementById('conflict-list');
+                list.innerHTML = '';
+                conflicts.forEach(n => { const d = document.createElement('div'); d.textContent = n; list.appendChild(d); });
+                modal.classList.add('open');
+                const onClick = (e) => {
+                    let choice = e.target.getAttribute('data-choice');
+                    if (e.target === modal) choice = 'cancel';
+                    if (!choice) return;
+                    modal.classList.remove('open');
+                    modal.removeEventListener('click', onClick);
+                    resolve(choice);
+                };
+                modal.addEventListener('click', onClick);
+            });
+        }
+
+        function showImportResult(data) {
+            let msg = 'Import complete\n\n• ' + data.added + ' added';
+            if (data.overwritten) msg += '\n• ' + data.overwritten + ' overwritten:\n    – ' + data.overwritten_names.join('\n    – ');
+            if (data.copied) msg += '\n• ' + data.copied + ' kept as copy:\n    – ' + data.copied_names.join('\n    – ');
+            if (data.unchanged) msg += '\n• ' + data.unchanged + ' unchanged (identical, skipped)';
+            if (data.logs_restored) msg += '\n• ' + data.logs_restored + ' log file(s) restored';
+            if (data.manifest && data.manifest.exported_at) {
+                msg += '\n\nBackup from: ' + new Date(data.manifest.exported_at).toLocaleString();
+            }
+            alert(msg);
+        }
+
         async function handleImportFile(event) {
             const file = event.target.files[0];
             if (!file) return;
             event.target.value = '';
-            const formData = new FormData();
-            formData.append('file', file, file.name);
-            try {
-                const res = await fetch('/import_script?token=' + encodeURIComponent(currentToken), { method: 'POST', body: formData });
-                if (res.ok) {
-                    const data = await res.json();
-                    alert('Imported ' + data.imported + ' script(s)');
-                    loadScripts();
-                } else {
-                    const err = await res.json().catch(() => ({}));
-                    alert('Import failed: ' + (err.error || res.status));
-                }
-            } catch (e) { alert('Import error: ' + e.message); }
+            // Phase 1: detect conflicts without writing anything
+            const detect = await importRequest(file, 'detect');
+            if (!detect) return;
+            let mode = 'overwrite';
+            if (detect.conflicts > 0) {
+                const choice = await askConflictChoice(detect.conflict_names);
+                if (choice === 'cancel') return;
+                mode = choice; // 'overwrite' or 'copy'
+            }
+            // Phase 2: apply with the chosen resolution
+            const result = await importRequest(file, mode);
+            if (!result) return;
+            showImportResult(result);
+            loadScripts();
         }
+
+        (function setupGutter() {
+            const gutter = document.getElementById('gutter');
+            const leftPanel = document.querySelector('.left-panel');
+            const main = document.querySelector('.main-content');
+            if (!gutter || !leftPanel || !main) return;
+            const MIN = 240, MAX_FRAC = 0.75;
+            const saved = parseInt(localStorage.getItem('leftPanelWidth') || '', 10);
+            if (saved) leftPanel.style.flexBasis = saved + 'px';
+            let dragging = false;
+            const onMove = (e) => {
+                if (!dragging) return;
+                const rect = main.getBoundingClientRect();
+                const max = Math.max(MIN, rect.width * MAX_FRAC);
+                const w = Math.min(max, Math.max(MIN, e.clientX - rect.left));
+                leftPanel.style.flexBasis = w + 'px';
+                if (typeof editor !== 'undefined' && editor) editor.resize();
+            };
+            const stop = () => {
+                if (!dragging) return;
+                dragging = false;
+                gutter.classList.remove('dragging');
+                document.body.style.userSelect = '';
+                document.body.style.cursor = '';
+                localStorage.setItem('leftPanelWidth', parseInt(leftPanel.style.flexBasis, 10) || '');
+            };
+            gutter.addEventListener('mousedown', (e) => {
+                dragging = true;
+                gutter.classList.add('dragging');
+                document.body.style.userSelect = 'none';
+                document.body.style.cursor = 'col-resize';
+                e.preventDefault();
+            });
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', stop);
+        })();
     </script>
 </body>
 </html>
