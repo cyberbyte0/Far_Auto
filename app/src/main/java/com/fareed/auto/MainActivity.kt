@@ -16,6 +16,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
+import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,9 +25,12 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.switchmaterial.SwitchMaterial
 import java.io.File
+import java.util.Collections
 
 class MainActivity : AppCompatActivity() {
 
@@ -322,7 +327,7 @@ class MainActivity : AppCompatActivity() {
             },
             onRename = { file ->
                 if (file.name != "ui_explorer.py") {
-                    val input = android.widget.EditText(this).apply { setText(file.name) }
+                    val input = EditText(this).apply { setText(file.name) }
                     AlertDialog.Builder(this).setTitle("Rename").setView(input)
                         .setPositiveButton("OK") { _, _ ->
                             val newName = input.text.toString().trim()
@@ -332,7 +337,8 @@ class MainActivity : AppCompatActivity() {
                             }
                         }.show()
                 }
-            }
+            },
+            onSelectionChanged = { updateSelectionCount() }
         )
         recyclerView.adapter = adapter
 
@@ -357,6 +363,9 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        findViewById<View>(R.id.menuRunSeq).setOnClickListener {
+            closeFabMenu(btnNew, fabMenu); isMenuOpen = false; enterSelectionMode()
+        }
         findViewById<View>(R.id.menuCreate).setOnClickListener {
             closeFabMenu(btnNew, fabMenu); isMenuOpen = false; createNewScript()
         }
@@ -366,6 +375,83 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.menuExport).setOnClickListener {
             closeFabMenu(btnNew, fabMenu); isMenuOpen = false; exportAllScripts()
         }
+
+        findViewById<View>(R.id.btnSelectCancel).setOnClickListener { exitSelectionMode() }
+        findViewById<View>(R.id.btnSelectNext).setOnClickListener { showRunSequenceDialog() }
+    }
+
+    private fun enterSelectionMode() {
+        adapter.selectionMode = true
+        findViewById<View>(R.id.btnNew).visibility = View.GONE
+        findViewById<View>(R.id.selectionBar).visibility = View.VISIBLE
+        updateSelectionCount()
+    }
+
+    private fun exitSelectionMode() {
+        adapter.selectionMode = false
+        findViewById<View>(R.id.selectionBar).visibility = View.GONE
+        findViewById<View>(R.id.btnNew).visibility = View.VISIBLE
+    }
+
+    private fun updateSelectionCount() {
+        val n = adapter.selectedOrder.size
+        findViewById<TextView>(R.id.selectionCount).text = "$n selected"
+        findViewById<Button>(R.id.btnSelectNext).isEnabled = n > 0
+    }
+
+    private fun showRunSequenceDialog() {
+        val selected = adapter.selectedOrder.toMutableList()
+        if (selected.isEmpty()) {
+            Toast.makeText(this, "Select at least one script", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_run_sequence, null)
+        val list = view.findViewById<RecyclerView>(R.id.sequenceList)
+        val switchStop = view.findViewById<SwitchMaterial>(R.id.switchStopOnError)
+        val inputDelay = view.findViewById<EditText>(R.id.inputDelay)
+
+        list.layoutManager = LinearLayoutManager(this)
+        val seqAdapter = SequenceAdapter(selected)
+        list.adapter = seqAdapter
+
+        val touchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0
+        ) {
+            override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {
+                seqAdapter.move(vh.bindingAdapterPosition, target.bindingAdapterPosition)
+                return true
+            }
+            override fun onSwiped(vh: RecyclerView.ViewHolder, dir: Int) {}
+            override fun isLongPressDragEnabled() = true
+        })
+        touchHelper.attachToRecyclerView(list)
+
+        AlertDialog.Builder(this)
+            .setTitle("Run Sequence (${selected.size})")
+            .setView(view)
+            .setPositiveButton("Run") { _, _ ->
+                // Drop any scripts deleted/renamed while selection mode was open.
+                val paths = ArrayList(seqAdapter.items.filter { it.exists() }.map { it.absolutePath })
+                if (paths.isEmpty()) {
+                    Toast.makeText(this, "No selected scripts still exist", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val delayMs = inputDelay.text.toString().toLongOrNull()?.coerceAtLeast(0L) ?: 0L
+                runSequence(paths, switchStop.isChecked, delayMs)
+                exitSelectionMode()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun runSequence(paths: ArrayList<String>, stopOnError: Boolean, delayMs: Long) {
+        val intent = Intent(this, ScriptExecutionService::class.java).apply {
+            putStringArrayListExtra("SCRIPT_PATHS", paths)
+            putExtra("STOP_ON_ERROR", stopOnError)
+            putExtra("INTER_DELAY_MS", delayMs)
+        }
+        startForegroundService(intent)
     }
 
     private fun closeFabMenu(fab: com.google.android.material.floatingactionbutton.FloatingActionButton, menu: View) {
@@ -427,10 +513,22 @@ class MainActivity : AppCompatActivity() {
         private val onRun: (File) -> Unit,
         private val onEdit: (File) -> Unit,
         private val onDelete: (File) -> Unit,
-        private val onRename: (File) -> Unit
+        private val onRename: (File) -> Unit,
+        private val onSelectionChanged: () -> Unit = {}
     ) : RecyclerView.Adapter<ScriptAdapter.ViewHolder>() {
+
+        /** Insertion-ordered selection — order of ticking is the default run order. */
+        val selectedOrder = LinkedHashSet<File>()
+        var selectionMode: Boolean = false
+            set(value) {
+                field = value
+                if (!value) selectedOrder.clear()
+                notifyDataSetChanged()
+            }
+
         class ViewHolder(v: View) : RecyclerView.ViewHolder(v) {
             val name: TextView = v.findViewById(R.id.scriptName)
+            val check: CheckBox = v.findViewById(R.id.scriptSelect)
             val btnRun: View = v.findViewById(R.id.btnRun)
             val btnEdit: View = v.findViewById(R.id.btnEdit)
             val btnDel: View = v.findViewById(R.id.btnDel)
@@ -441,11 +539,52 @@ class MainActivity : AppCompatActivity() {
             h.name.text = f.name
             if (f.name == "ui_explorer.py") (h.btnDel as? android.widget.ImageButton)?.setImageResource(android.R.drawable.ic_menu_revert)
             else (h.btnDel as? android.widget.ImageButton)?.setImageResource(android.R.drawable.ic_menu_delete)
-            h.btnRun.setOnClickListener { onRun(f) }
-            h.btnEdit.setOnClickListener { onEdit(f) }
-            h.btnDel.setOnClickListener { onDelete(f) }
-            h.itemView.setOnLongClickListener { onRename(f); true }
+
+            val actionVis = if (selectionMode) View.GONE else View.VISIBLE
+            h.btnRun.visibility = actionVis
+            h.btnEdit.visibility = actionVis
+            h.btnDel.visibility = actionVis
+            h.check.visibility = if (selectionMode) View.VISIBLE else View.GONE
+
+            h.check.setOnCheckedChangeListener(null)
+            h.check.isChecked = selectedOrder.contains(f)
+            h.check.setOnCheckedChangeListener { _, checked ->
+                if (checked) selectedOrder.add(f) else selectedOrder.remove(f)
+                onSelectionChanged()
+            }
+
+            if (selectionMode) {
+                h.itemView.setOnClickListener { h.check.isChecked = !h.check.isChecked }
+                h.itemView.setOnLongClickListener(null)
+            } else {
+                h.btnRun.setOnClickListener { onRun(f) }
+                h.btnEdit.setOnClickListener { onEdit(f) }
+                h.btnDel.setOnClickListener { onDelete(f) }
+                h.itemView.setOnClickListener(null)
+                h.itemView.setOnLongClickListener { onRename(f); true }
+            }
         }
         override fun getItemCount() = scripts.size
+    }
+
+    /** Reorderable list of the selected scripts shown in the Run Sequence dialog. */
+    class SequenceAdapter(val items: MutableList<File>) : RecyclerView.Adapter<SequenceAdapter.ViewHolder>() {
+        class ViewHolder(v: View) : RecyclerView.ViewHolder(v) {
+            val position: TextView = v.findViewById(R.id.seqPosition)
+            val name: TextView = v.findViewById(R.id.seqName)
+        }
+        override fun onCreateViewHolder(parent: ViewGroup, vt: Int) = ViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_sequence, parent, false))
+        override fun onBindViewHolder(h: ViewHolder, p: Int) {
+            h.position.text = "${p + 1}."
+            h.name.text = items[p].name
+        }
+        override fun getItemCount() = items.size
+
+        fun move(from: Int, to: Int) {
+            if (from < 0 || to < 0 || from >= items.size || to >= items.size) return
+            Collections.swap(items, from, to)
+            notifyItemMoved(from, to)
+            notifyItemRangeChanged(minOf(from, to), kotlin.math.abs(from - to) + 1)
+        }
     }
 }

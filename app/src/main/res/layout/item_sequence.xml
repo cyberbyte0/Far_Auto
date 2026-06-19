@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingVertical="10dp"
+    android:paddingHorizontal="4dp">
+
+    <ImageView
+        android:id="@+id/dragHandle"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:src="@android:drawable/ic_menu_sort_by_size"
+        app:tint="@color/text_secondary"
+        android:contentDescription="Drag handle" />
+
+    <TextView
+        android:id="@+id/seqPosition"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:textColor="@color/text_secondary"
+        android:textStyle="bold"
+        android:text="1." />
+
+    <TextView
+        android:id="@+id/seqName"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="8dp"
+        android:textColor="@color/text_primary"
+        android:textSize="15sp"
+        android:text="script.py" />
+</LinearLayout>

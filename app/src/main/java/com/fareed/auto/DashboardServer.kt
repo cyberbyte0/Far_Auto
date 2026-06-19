@@ -51,6 +51,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         val response = when (uri) {
             "/scripts" -> handleGetScripts()
             "/run" -> handleRunScript(session)
+            "/run_batch" -> handleRunBatch(session)
             "/stop" -> handleStopScript()
             "/status" -> handleGetStatus()
             "/logs" -> handleGetLogs()
@@ -137,6 +138,49 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"started\"}")
     }
 
+    private fun handleRunBatch(session: IHTTPSession): Response {
+        val clientIp = session.remoteIpAddress
+        val lastRun = runRateLimits[clientIp] ?: 0L
+        if (System.currentTimeMillis() - lastRun < 5000) {
+            return newFixedLengthResponse(Response.Status.TOO_MANY_REQUESTS, "application/json", "{\"error\":\"rate limit exceeded\"}")
+        }
+        runRateLimits[clientIp] = System.currentTimeMillis()
+
+        val map = HashMap<String, String>()
+        try { session.parseBody(map) } catch (e: Exception) {}
+        val body = map["postData"] ?: session.parms["postData"] ?: ""
+        val json = try { JSONObject(body) } catch (e: Exception) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"invalid json body\"}")
+        }
+
+        val names = json.optJSONArray("scripts")
+        if (names == null || names.length() == 0) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"no scripts provided\"}")
+        }
+        val stopOnError = json.optBoolean("stop_on_error", false)
+        val delayMs = json.optLong("delay_ms", 0L)
+
+        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
+        val paths = ArrayList<String>()
+        for (i in 0 until names.length()) {
+            val name = names.optString(i, "")
+            if (name.isEmpty()) continue
+            val file = getSafeFile(scriptsDir, name)
+            if (file.exists()) paths.add(file.absolutePath)
+        }
+        if (paths.isEmpty()) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"no valid scripts found\"}")
+        }
+
+        val intent = Intent(context, ScriptExecutionService::class.java).apply {
+            putStringArrayListExtra("SCRIPT_PATHS", paths)
+            putExtra("STOP_ON_ERROR", stopOnError)
+            putExtra("INTER_DELAY_MS", delayMs)
+        }
+        context.startForegroundService(intent)
+        return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"started\",\"count\":${paths.size}}")
+    }
+
     private fun handleStopScript(): Response {
         val intent = Intent("com.fareed.auto.ACTION_KILL_SCRIPT").apply { setPackage(context.packageName) }
         context.sendBroadcast(intent)
@@ -147,6 +191,8 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         val status = JSONObject().apply {
             put("running", ScriptExecutionService.isRunning.get())
             put("current_script", ScriptExecutionService.currentScriptPath?.substringAfterLast("/"))
+            put("batch_index", ScriptExecutionService.batchIndex.get())
+            put("batch_total", ScriptExecutionService.batchTotal)
             put("accessibility_enabled", FarAutoAccessibilityService.instance != null)
             put("recording", ScreenRecordService.isRecording())
         }
