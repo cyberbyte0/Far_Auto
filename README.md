@@ -27,8 +27,10 @@
 - ⚡ **Performance Optimized** — Kotlin-side UI filtering and **In-Memory** logging for zero-lag interaction.
 - 🤖 **Live Agent Mode (MCP)** — Connect external AI models (Claude, Cursor, Cline) to control your device using the Model Context Protocol.
 - 🛡️ **Security First** — Path-traversal protection and cryptographically secure auth tokens.
-- 📦 **Backup & Import** — Export all scripts as a ZIP and re-import `.py` or `.zip` files from both the app UI and the web console.
-- 🔗 **Multi-Script Sequences** — Select several scripts, reorder them, and run the whole batch in one go from either the app or the web console, with a configurable inter-script delay and a per-run **stop-on-error** toggle.
+- 📦 **Backup & Import** — Export all scripts as a ZIP (with an embedded `manifest.json` and optional bundled logs; the app also auto-saves a copy to **Downloads**) and re-import `.py` or `.zip` files from both the app and the web console. Import is **content-aware**: identical files are skipped, and name clashes prompt to **overwrite** or **keep both** (saved as `name (1).py`). The app and dashboard share the same backup format.
+- 🔗 **Multi-Script Sequences** — Select several scripts, reorder them (drag-to-reorder in the web console), and run the whole batch in one go from either the app or the web console, with a configurable inter-script delay and a per-run **stop-on-error** toggle. **Skip Current** ends just the running script and advances to the next without stopping the whole sequence.
+- 🔎 **Search, Sort & Bulk Actions** — Filter scripts by name and sort by name or modified-time, in both the app and the web console. Multi-select lets you **bulk-delete** or queue scripts; the system `ui_explorer.py` is protected from both.
+- 💾 **Unsaved-Changes Guard** — Both editors flag unsaved edits and confirm before discarding (the web editor also supports <kbd>Ctrl/Cmd</kbd>+<kbd>S</kbd>); the web console's script panel is resizable and truncates long names cleanly.
 - 🗒️ **Run Logs** — Every script run (web or app) is saved to a timestamped log file (`script_name_YYYY-MM-DD_HH-mm-ss.txt`, prefixed `Multi_` when run as part of a sequence); the latest 50 runs are kept.
 - 🎥 **Screen Recording** — Record the screen to MP4 from scripts after a one-time consent (MediaProjection).
 
