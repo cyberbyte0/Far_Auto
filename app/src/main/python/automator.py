@@ -110,7 +110,7 @@ def save_screenshot(filename="screenshot.jpg"):
         return False
     try:
         # Saved into Far_Auto/files alongside screen recordings
-        path = os.path.join(files_dir, filename)
+        path = os.path.join(files_dir, os.path.basename(filename))
         with open(path, "wb") as f:
             f.write(base64.b64decode(data))
         return path
@@ -135,7 +135,7 @@ def start_screen_record(filename=None):
     check_stop()
     if filename is None:
         filename = f"rec_{int(time.time())}.mp4"
-    return bridge.startScreenRecord(filename)
+    return bridge.startScreenRecord(os.path.basename(filename))
 
 def stop_screen_record():
     # Stops the active recording and returns the saved file path (or None).

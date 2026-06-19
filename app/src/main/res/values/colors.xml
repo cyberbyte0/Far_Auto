@@ -15,6 +15,7 @@
     <color name="text_secondary">#5F6368</color>
     <color name="border">#E0E0E0</color>
     <color name="accent">#7F52FF</color>
+    <color name="accent_dim">#1A7F52FF</color>
 
     <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

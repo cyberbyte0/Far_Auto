@@ -35,20 +35,17 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_rotate"
             android:contentDescription="Refresh List"
-            app:tint="@color/text_primary" />
+            app:tint="@color/accent" />
 
-        <TextView
+        <ImageButton
             android:id="@+id/btnMcp"
-            android:layout_width="wrap_content"
+            android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="16dp"
-            android:gravity="center"
-            android:text="MCP"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp"
-            android:textStyle="bold"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="AI Agent Setup" />
+            android:src="@drawable/ic_mcp"
+            android:contentDescription="AI Agent Setup (MCP)"
+            app:tint="@color/accent" />
 
         <ImageButton
             android:id="@+id/btnSettings"
@@ -58,7 +55,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_preferences"
             android:contentDescription="Open Settings"
-            app:tint="@color/text_primary" />
+            app:tint="@color/accent" />
     </LinearLayout>
 
     <androidx.cardview.widget.CardView
@@ -164,6 +161,31 @@
         app:layout_constraintEnd_toEndOf="parent">
 
         <LinearLayout
+            android:id="@+id/menuRunSeq"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_menu_item"
+            android:elevation="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="12dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Run Sequence"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="8dp" />
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_media_play"
+                app:tint="@color/accent" />
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/menuCreate"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -261,5 +283,46 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:tint="@color/white"
         android:contentDescription="New script options" />
+
+    <LinearLayout
+        android:id="@+id/selectionBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/surface"
+        android:elevation="8dp"
+        android:padding="12dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent">
+
+        <Button
+            android:id="@+id/btnSelectCancel"
+            style="?attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cancel"
+            android:textColor="@color/text_secondary" />
+
+        <TextView
+            android:id="@+id/selectionCount"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="0 selected"
+            android:textColor="@color/text_primary"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnSelectNext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Next"
+            android:backgroundTint="@color/accent"
+            android:textColor="@color/white" />
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

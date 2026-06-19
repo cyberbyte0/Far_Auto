@@ -84,23 +84,26 @@ class AutomatorBridge {
     fun inputText(text: String, clearFirst: Boolean): Boolean {
         val future = CompletableFuture<Boolean>()
         handler.post {
-            val node = service?.rootInActiveWindow?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            val root = service?.rootInActiveWindow
+            val node = root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             if (node == null) {
+                root?.recycle()
                 future.complete(false)
                 return@post
             }
-
-            if (clearFirst) {
+            try {
+                if (clearFirst) {
+                    val args = Bundle()
+                    args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
+                    node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                }
                 val args = Bundle()
-                args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "")
-                node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                future.complete(node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args))
+            } finally {
+                node.recycle()
+                root.recycle()
             }
-
-            val args = Bundle()
-            args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
-            val res = node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-            node.recycle()
-            future.complete(res)
         }
         return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { false }
     }
@@ -175,20 +178,17 @@ class AutomatorBridge {
 
     fun getLastToast(): String? {
         val future = CompletableFuture<String?>()
-        handler.post { future.complete(service?.lastToastText) }
+        handler.post { future.complete(service?.lastToast?.first) }
         return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { null }
     }
 
     fun clearLastToast() {
-        handler.post {
-            service?.lastToastText = null
-            service?.lastToastPackage = null
-        }
+        handler.post { service?.lastToast = null }
     }
 
     fun getLastToastPackage(): String? {
         val future = CompletableFuture<String?>()
-        handler.post { future.complete(service?.lastToastPackage) }
+        handler.post { future.complete(service?.lastToast?.second) }
         return try { future.get(5, TimeUnit.SECONDS) } catch (e: Exception) { null }
     }
 

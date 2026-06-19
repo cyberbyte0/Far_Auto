@@ -96,7 +96,7 @@ class ScreenRecorder(
             if (expectedTracks == 2) {
                 audioThread = Thread { drainAudio() }.apply { start() }
             }
-            Log.i(TAG, "ScreenRecorder started (audio=${expectedTracks == 2}) -> $outputPath")
+            if (BuildConfig.DEBUG) Log.i(TAG, "ScreenRecorder started (audio=${expectedTracks == 2}) -> $outputPath")
             return true
         } catch (e: Exception) {
             Log.e(TAG, "ScreenRecorder start failed", e)

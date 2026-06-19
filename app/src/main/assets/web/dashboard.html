@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js" integrity="sha512-oz/97HdPI510jvvYzVqE2tzz+jWpvUeVkK5OT0S2kPZOxuR+9cE8zT1V6UgwtRG71ThICBEtkPEzN5tfP/YeYw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <style>
         :root {
             /* Light Mode */
@@ -54,6 +54,8 @@
         .rec-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; background: rgba(239, 68, 68, 0.12); color: var(--danger); border: 1px solid var(--danger); }
         .rec-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); animation: recBlink 1s ease-in-out infinite; }
         @keyframes recBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+        .seq-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
+        .seq-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); animation: recBlink 1s ease-in-out infinite; }
 
         .auth-bar { display: flex; align-items: center; gap: 12px; }
         .input-dark { background: var(--input-bg); border: 1px solid var(--border); color: var(--text); padding: 10px 16px; border-radius: 10px; outline: none; font-size: 0.9rem; }
@@ -78,9 +80,27 @@
         #script-list { overflow-y: auto; flex-grow: 1; padding: 12px; }
         .script-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-radius: 14px; margin-bottom: 8px; }
         .script-item:hover { background: var(--accent-dim); }
+        .script-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .cbox { appearance: none; -webkit-appearance: none; margin: 0; flex-shrink: 0; width: 20px; height: 20px; border: 2px solid var(--border); border-radius: 6px; background: transparent; cursor: pointer; position: relative; transition: background 0.15s, border-color 0.15s; }
+        .cbox:hover { border-color: var(--accent); }
+        .cbox:checked { background: var(--accent); border-color: var(--accent); }
+        .cbox:checked::after { content: ''; position: absolute; left: 6px; top: 2px; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+        .script-check { width: 20px; height: 20px; }
         .script-name { font-weight: 600; }
         .script-actions { display: flex; gap: 4px; opacity: 0; }
         .script-item:hover .script-actions { opacity: 1; }
+
+        #queue-panel { border-top: 1px solid var(--border); padding: 12px 16px; max-height: 45%; overflow-y: auto; }
+        #queue-panel h4 { margin: 0 0 8px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-dim); }
+        .queue-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 8px; background: var(--accent-dim); margin-bottom: 6px; font-size: 0.8rem; }
+        .queue-row .q-idx { color: var(--text-dim); font-weight: 700; }
+        .queue-row .q-name { flex-grow: 1; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .queue-row button { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 6px; cursor: pointer; padding: 2px 8px; font-size: 0.8rem; line-height: 1.2; }
+        .queue-row button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+        .queue-row button:disabled { opacity: 0.3; cursor: default; }
+        .queue-opts { display: flex; align-items: center; gap: 14px; margin: 10px 2px; font-size: 0.78rem; color: var(--text-dim); flex-wrap: wrap; }
+        .queue-opts label { display: inline-flex; align-items: center; gap: 6px; }
+        .queue-opts input[type=number] { width: 84px; }
 
         .tabs { display: flex; gap: 8px; padding: 12px 24px; background: var(--bg); border-bottom: 1px solid var(--border); }
         .tab-btn { background: transparent; color: var(--text-dim); border: none; font-size: 0.875rem; font-weight: 600; cursor: pointer; padding: 10px 20px; border-radius: 10px; }
@@ -112,6 +132,7 @@
             <h1>Far_Auto</h1>
             <div id="status-badge" class="status-pill">Disconnected</div>
             <div id="rec-indicator" class="rec-pill" style="display: none;"><span class="rec-dot"></span>REC</div>
+            <div id="seq-indicator" class="seq-pill" style="display: none;"><span class="seq-dot"></span><span id="seq-text">SEQ</span></div>
         </div>
         <div class="auth-bar">
             <div class="theme-toggle" onclick="toggleTheme()" id="theme-icon">☀️</div>
@@ -124,6 +145,18 @@
             <div class="panel-header"><h3>Scripts</h3><div style="display: flex; gap: 8px;"><button class="btn btn-ghost" style="padding: 8px" onclick="loadScripts()">↻</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="exportScripts()" title="Download all scripts as ZIP">Export</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="importScripts()" title="Upload .py or .zip">Import</button><button class="btn btn-primary" onclick="newScript()">+ New</button></div></div>
             <input type="file" id="import-file-input" accept=".py,.zip" style="display:none" onchange="handleImportFile(event)">
             <div id="script-list"></div>
+            <div id="queue-panel" style="display: none;">
+                <h4>Run Queue (<span id="queue-count">0</span>)</h4>
+                <div id="queue-list"></div>
+                <div class="queue-opts">
+                    <label><input type="checkbox" class="cbox" id="queue-stop-error"> Stop on error</label>
+                    <label>Delay (ms) <input type="number" id="queue-delay" class="input-dark" min="0" step="100" value="0" style="padding: 6px 10px;"></label>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-primary" style="flex: 1;" onclick="runBatch()">▶ Run Queue</button>
+                    <button class="btn btn-ghost" onclick="clearQueue()">Clear</button>
+                </div>
+            </div>
             <div style="padding: 20px; text-align: center; border-top: 1px solid var(--border); opacity: 0.6; font-size: 0.75rem; font-weight: 500; color: var(--text-dim);">Developed by Fareed</div>
         </div>
         <div class="panel right-panel">
@@ -160,9 +193,10 @@
                         <ul style="font-size: 0.9rem; color: var(--text-dim);">
                             <li><b>Command:</b> <code>python3</code></li>
                             <li><b>Args:</b> <code>/path/to/far_auto_mcp.py</code></li>
-                            <li><b>Env Variables:</b> 
+                            <li><b>Env Variables:</b>
                                 <ul>
                                     <li><code>DEVICE_IP</code> = <code id="setup-ip-text" style="color: var(--accent)">127.0.0.1</code></li>
+                                    <li><code>DEVICE_PORT</code> = <code id="setup-port-text" style="color: var(--accent)">8080</code></li>
                                     <li><code>AUTH_TOKEN</code> = <code id="setup-token-text" style="color: var(--accent)">TOKEN</code></li>
                                 </ul>
                             </li>
@@ -225,13 +259,14 @@
             if (tab === 'editor' && editor) editor.resize();
         }
 
-        async function api(path, method='GET', body=null) {
+        async function api(path, method='GET', body=null, contentType='application/x-www-form-urlencoded') {
             if (!currentToken) return null;
             try {
-                const url = path + (path.includes('?') ? '&' : '?') + 'token=' + currentToken;
-                const opt = { method };
-                if(body) { opt.headers = { 'Content-Type': 'application/x-www-form-urlencoded' }; opt.body = body; }
-                const res = await fetch(url, opt);
+                const headers = { 'X-Automator-Token': currentToken };
+                if (body) headers['Content-Type'] = contentType;
+                const opt = { method, headers };
+                if (body) opt.body = body;
+                const res = await fetch(path, opt);
                 if (res.status === 401) return res;
                 return res;
             } catch (e) { return null; }
@@ -239,19 +274,140 @@
 
         async function loadScripts() {
             const res = await api('/scripts');
+            if (!(res && res.ok)) return;
+            const scripts = await res.json();
+            availableScripts = scripts;
+            // Drop any queued scripts that no longer exist
+            queue = queue.filter(n => scripts.includes(n));
+            const list = document.getElementById('script-list');
+            list.innerHTML = '';
+            const BASE = 'padding: 6px 10px; font-size: 0.7rem;';
+            scripts.forEach(s => {
+                const isSystem = s === 'ui_explorer.py';
+                const item = document.createElement('div');
+                item.className = 'script-item';
+
+                const left = document.createElement('div');
+                left.className = 'script-left';
+
+                const check = document.createElement('input');
+                check.type = 'checkbox';
+                check.className = 'cbox script-check';
+                check.checked = queue.includes(s);
+                check.title = 'Add to run queue';
+                check.addEventListener('change', () => toggleQueue(s, check.checked));
+
+                const info = document.createElement('div');
+                info.className = 'script-info';
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'script-name';
+                nameSpan.textContent = s;
+                info.appendChild(nameSpan);
+                left.appendChild(check);
+                left.appendChild(info);
+
+                const actions = document.createElement('div');
+                actions.className = 'script-actions';
+
+                const mkBtn = (text, cls, style, handler) => {
+                    const b = document.createElement('button');
+                    b.className = `btn ${cls}`;
+                    b.style.cssText = style;
+                    b.textContent = text;
+                    b.addEventListener('click', handler);
+                    return b;
+                };
+
+                actions.appendChild(mkBtn('Edit', 'btn-ghost', BASE, () => openEditor(s)));
+                if (!isSystem) actions.appendChild(mkBtn('Rename', 'btn-ghost', BASE, () => renameScript(s)));
+                actions.appendChild(mkBtn('Run', 'btn-primary', BASE, () => runScript(s)));
+                actions.appendChild(isSystem
+                    ? mkBtn('Reset', 'btn-danger', BASE + ' border: none;', () => resetScript(s))
+                    : mkBtn('Del', 'btn-danger', BASE + ' border: none;', () => deleteScript(s)));
+
+                item.appendChild(left);
+                item.appendChild(actions);
+                list.appendChild(item);
+            });
+            renderQueue();
+        }
+
+        // ---- Run Queue (multi-script sequence) ----
+        let queue = [];
+        let availableScripts = [];
+
+        function toggleQueue(name, on) {
+            if (on) { if (!queue.includes(name)) queue.push(name); }
+            else { queue = queue.filter(n => n !== name); }
+            renderQueue();
+        }
+
+        function moveInQueue(i, dir) {
+            const j = i + dir;
+            if (j < 0 || j >= queue.length) return;
+            [queue[i], queue[j]] = [queue[j], queue[i]];
+            renderQueue();
+        }
+
+        function removeFromQueue(name) {
+            queue = queue.filter(n => n !== name);
+            const list = document.getElementById('script-list');
+            list.querySelectorAll('.script-check').forEach((c, idx) => {
+                if (availableScripts[idx] === name) c.checked = false;
+            });
+            renderQueue();
+        }
+
+        function clearQueue() {
+            queue = [];
+            document.querySelectorAll('.script-check').forEach(c => c.checked = false);
+            renderQueue();
+        }
+
+        function renderQueue() {
+            const panel = document.getElementById('queue-panel');
+            const list = document.getElementById('queue-list');
+            document.getElementById('queue-count').textContent = queue.length;
+            if (queue.length === 0) { panel.style.display = 'none'; list.innerHTML = ''; return; }
+            panel.style.display = 'block';
+            list.innerHTML = '';
+            queue.forEach((name, i) => {
+                const row = document.createElement('div');
+                row.className = 'queue-row';
+                const idx = document.createElement('span');
+                idx.className = 'q-idx';
+                idx.textContent = (i + 1) + '.';
+                const nm = document.createElement('span');
+                nm.className = 'q-name';
+                nm.textContent = name;
+                const mk = (txt, handler, disabled) => {
+                    const b = document.createElement('button');
+                    b.textContent = txt; b.disabled = !!disabled;
+                    b.addEventListener('click', handler);
+                    return b;
+                };
+                row.appendChild(idx);
+                row.appendChild(nm);
+                row.appendChild(mk('▲', () => moveInQueue(i, -1), i === 0));
+                row.appendChild(mk('▼', () => moveInQueue(i, 1), i === queue.length - 1));
+                row.appendChild(mk('✕', () => removeFromQueue(name)));
+                list.appendChild(row);
+            });
+        }
+
+        async function runBatch() {
+            if (queue.length === 0) return;
+            const body = JSON.stringify({
+                scripts: queue,
+                stop_on_error: document.getElementById('queue-stop-error').checked,
+                delay_ms: parseInt(document.getElementById('queue-delay').value, 10) || 0
+            });
+            const res = await api('/run_batch', 'POST', body, 'application/json');
             if (res && res.ok) {
-                const scripts = await res.json();
-                document.getElementById('script-list').innerHTML = scripts.map(s => `
-                    <div class="script-item">
-                        <div class="script-info"><span class="script-name">${s}</span></div>
-                        <div class="script-actions">
-                            <button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.7rem;" onclick="openEditor('${s}')">Edit</button>
-                            ${s === 'ui_explorer.py' ? '' : `<button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.7rem;" onclick="renameScript('${s}')">Rename</button>`}
-                            <button class="btn btn-primary" style="padding: 6px 10px; font-size: 0.7rem;" onclick="runScript('${s}')">Run</button>
-                            <button class="btn btn-danger" style="padding: 6px 10px; font-size: 0.7rem; border:none;" onclick="${s === 'ui_explorer.py' ? `resetScript('${s}')` : `deleteScript('${s}')`}">${s === 'ui_explorer.py' ? 'Reset' : 'Del'}</button>
-                        </div>
-                    </div>
-                `).join('');
+                switchTab('terminal');
+                document.getElementById('log-terminal').innerText = 'Starting sequence (' + queue.length + ' scripts)...';
+            } else if (res) {
+                alert('Failed to start sequence');
             }
         }
 
@@ -317,15 +473,20 @@
             const res = await api('/status');
             const badge = document.getElementById('status-badge');
             const recPill = document.getElementById('rec-indicator');
-            if (!res) { badge.innerText = 'DISCONNECTED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; return; }
-            if (res.status === 401) { badge.innerText = 'UNAUTHORIZED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; return; }
+            const seqPill = document.getElementById('seq-indicator');
+            if (!res) { badge.innerText = 'DISCONNECTED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; seqPill.style.display = 'none'; return; }
+            if (res.status === 401) { badge.innerText = 'UNAUTHORIZED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; seqPill.style.display = 'none'; return; }
 
             const status = await res.json();
             const isRunning = status.running;
+            const inSequence = isRunning && status.batch_total > 1;
 
             recPill.style.display = status.recording ? 'inline-flex' : 'none';
+            seqPill.style.display = inSequence ? 'inline-flex' : 'none';
+            if (inSequence) document.getElementById('seq-text').textContent = 'SEQ ' + status.batch_index + '/' + status.batch_total;
 
             if (!status.accessibility_enabled) { badge.innerText = 'ACCESSIBILITY OFF'; badge.style.color = 'var(--danger)'; }
+            else if (inSequence) { badge.innerText = 'Running ' + status.batch_index + '/' + status.batch_total + ': ' + status.current_script; badge.style.color = 'var(--success)'; }
             else if (isRunning) { badge.innerText = 'Running: ' + status.current_script; badge.style.color = 'var(--success)'; }
             else { badge.innerText = 'Connected'; badge.style.color = 'var(--accent)'; }
 
@@ -344,6 +505,7 @@
                             document.querySelector('#setup-script-code .content-text').innerText = data.script;
                             document.querySelector('#setup-claude-config .content-text').innerText = JSON.stringify(data.claude_config, null, 2);
                             document.getElementById('setup-ip-text').innerText = data.ip;
+                            document.getElementById('setup-port-text').innerText = data.port || '8080';
                             document.getElementById('setup-token-text').innerText = data.token;
                             document.getElementById('setup-overlay').style.display = 'block';
                             switchTab('terminal');

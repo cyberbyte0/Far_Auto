@@ -2,12 +2,14 @@ package com.fareed.auto
 
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import fi.iki.elonen.NanoHTTPD
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 
 class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port) {
@@ -15,28 +17,31 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
     companion object {
         var authToken: String = ""
         fun generateToken(): String {
-            val charPool : List<Char> = ('a'..'z') + ('A'..'Z') + ('0'..'9')
-            val sr = SecureRandom()
-            return (1..12)
-                .map { _ -> sr.nextInt(charPool.size) }
-                .map(charPool::get)
-                .joinToString("")
+            val bytes = ByteArray(32)
+            SecureRandom().nextBytes(bytes)
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
         }
     }
 
     private val runRateLimits = ConcurrentHashMap<String, Long>()
 
-    private fun getSafeFile(baseDir: File, fileName: String): File {
-        val sanitized = fileName.substringAfterLast("/").substringAfterLast("\\")
-        return File(baseDir, sanitized)
-    }
+    private fun getSafeFile(baseDir: File, fileName: String): File = safeFileIn(baseDir, fileName)
 
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri
-        val providedToken = session.headers["x-automator-token"] ?: session.parms["token"]
+        val providedToken = session.headers["x-automator-token"]
         
         if (uri == "/" || uri == "/index.html") {
-            return newFixedLengthResponse(Response.Status.OK, "text/html", getDashboardHtml())
+            val resp = newFixedLengthResponse(Response.Status.OK, "text/html", getDashboardHtml())
+            resp.addHeader("X-Content-Type-Options", "nosniff")
+            resp.addHeader("X-Frame-Options", "DENY")
+            resp.addHeader("Content-Security-Policy",
+                "default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://cdnjs.cloudflare.com; " +
+                "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; " +
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; " +
+                "font-src https://fonts.gstatic.com; " +
+                "connect-src 'self';")
+            return resp
         }
 
         if (!MessageDigest.isEqual(authToken.toByteArray(), providedToken?.toByteArray() ?: ByteArray(0))) {
@@ -46,6 +51,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         val response = when (uri) {
             "/scripts" -> handleGetScripts()
             "/run" -> handleRunScript(session)
+            "/run_batch" -> handleRunBatch(session)
             "/stop" -> handleStopScript()
             "/status" -> handleGetStatus()
             "/logs" -> handleGetLogs()
@@ -96,7 +102,8 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
             scriptFile.writeText(content)
             newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"saved\"}")
         } catch (e: Exception) {
-            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"${e.message}\"}")
+            Log.e("FarAuto", "Save script failed: ${scriptFile.name}", e)
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"save failed\"}")
         }
     }
 
@@ -133,6 +140,49 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"started\"}")
     }
 
+    private fun handleRunBatch(session: IHTTPSession): Response {
+        val clientIp = session.remoteIpAddress
+        val lastRun = runRateLimits[clientIp] ?: 0L
+        if (System.currentTimeMillis() - lastRun < 5000) {
+            return newFixedLengthResponse(Response.Status.TOO_MANY_REQUESTS, "application/json", "{\"error\":\"rate limit exceeded\"}")
+        }
+        runRateLimits[clientIp] = System.currentTimeMillis()
+
+        val map = HashMap<String, String>()
+        try { session.parseBody(map) } catch (e: Exception) {}
+        val body = map["postData"] ?: session.parms["postData"] ?: ""
+        val json = try { JSONObject(body) } catch (e: Exception) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"invalid json body\"}")
+        }
+
+        val names = json.optJSONArray("scripts")
+        if (names == null || names.length() == 0) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"no scripts provided\"}")
+        }
+        val stopOnError = json.optBoolean("stop_on_error", false)
+        val delayMs = json.optLong("delay_ms", 0L)
+
+        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
+        val paths = ArrayList<String>()
+        for (i in 0 until names.length()) {
+            val name = names.optString(i, "")
+            if (name.isEmpty()) continue
+            val file = getSafeFile(scriptsDir, name)
+            if (file.exists()) paths.add(file.absolutePath)
+        }
+        if (paths.isEmpty()) {
+            return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"no valid scripts found\"}")
+        }
+
+        val intent = Intent(context, ScriptExecutionService::class.java).apply {
+            putStringArrayListExtra("SCRIPT_PATHS", paths)
+            putExtra("STOP_ON_ERROR", stopOnError)
+            putExtra("INTER_DELAY_MS", delayMs)
+        }
+        context.startForegroundService(intent)
+        return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"started\",\"count\":${paths.size}}")
+    }
+
     private fun handleStopScript(): Response {
         val intent = Intent("com.fareed.auto.ACTION_KILL_SCRIPT").apply { setPackage(context.packageName) }
         context.sendBroadcast(intent)
@@ -143,6 +193,8 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         val status = JSONObject().apply {
             put("running", ScriptExecutionService.isRunning.get())
             put("current_script", ScriptExecutionService.currentScriptPath?.substringAfterLast("/"))
+            put("batch_index", ScriptExecutionService.batchIndex.get())
+            put("batch_total", ScriptExecutionService.batchTotal)
             put("accessibility_enabled", FarAutoAccessibilityService.instance != null)
             put("recording", ScreenRecordService.isRecording())
         }
@@ -169,7 +221,8 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
             }
             newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"restored\"}")
         } catch (e: Exception) {
-            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"${e.message}\"}")
+            Log.e("FarAuto", "Reset script failed: ${scriptFile.name}", e)
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"reset failed\"}")
         }
     }
 
@@ -237,12 +290,21 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
                 "take_screenshot" -> handleTakeScreenshot()
                 "perform_action" -> handlePerformAction(params)
                 "click_and_wait" -> handleClickAndWait(params)
+                "get_screen_size" -> handleGetScreenSize()
+                "find_element" -> handleFindElement(params)
+                "dump_ui_tree" -> handleDumpUiTree()
+                "get_last_toast" -> handleGetLastToast()
+                "is_secure_window" -> handleIsSecureWindow()
+                "open_app_settings" -> handleOpenAppSettings(params)
+                "close_app_from_recents" -> handleCloseAppFromRecents()
+                "force_stop_app" -> handleForceStopApp(params)
                 else -> return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"unknown method $method\"}")
             }
             
             return newFixedLengthResponse(Response.Status.OK, "application/json", result.toString())
         } catch (e: Exception) {
-            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"${e.message}\"}")
+            Log.e("FarAuto", "RPC error", e)
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"rpc error\"}")
         }
     }
 
@@ -302,6 +364,11 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
             "launch_app" -> {
                 val pkg = params.optString("package", "")
                 bridge.launchApp(pkg)
+            }
+            "long_press" -> {
+                val x = params.optDouble("x", 0.0).toFloat()
+                val y = params.optDouble("y", 0.0).toFloat()
+                bridge.swipe(x, y, x, y, 800L)
             }
             else -> false
         }
@@ -381,6 +448,97 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         } catch (e: Exception) {
             newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"${e.message}\"}")
         }
+    }
+
+    private fun handleGetScreenSize(): JSONObject {
+        val bridge = AutomatorBridge()
+        val size = bridge.getScreenSize()
+        val parts = size.split(",")
+        return JSONObject().apply {
+            put("width", parts.getOrNull(0)?.toIntOrNull() ?: 1080)
+            put("height", parts.getOrNull(1)?.toIntOrNull() ?: 2400)
+        }
+    }
+
+    private fun handleFindElement(params: JSONObject): JSONObject {
+        val bridge = AutomatorBridge()
+        val resourceId = params.optString("resource_id").ifEmpty { null }
+        val text = params.optString("text").ifEmpty { null }
+        val results = bridge.findNodes(resourceId, text)
+        return JSONObject().apply { put("elements", org.json.JSONArray(results)) }
+    }
+
+    private fun handleDumpUiTree(): JSONObject {
+        val bridge = AutomatorBridge()
+        return JSONObject(bridge.dumpTree())
+    }
+
+    private fun handleGetLastToast(): JSONObject {
+        val bridge = AutomatorBridge()
+        val text = bridge.getLastToast()
+        val pkg = bridge.getLastToastPackage()
+        return JSONObject().apply {
+            put("toast", text ?: JSONObject.NULL)
+            put("package", pkg ?: JSONObject.NULL)
+        }
+    }
+
+    private fun handleIsSecureWindow(): JSONObject {
+        val bridge = AutomatorBridge()
+        return JSONObject().apply { put("secure", bridge.isSecureWindow()) }
+    }
+
+    private fun handleOpenAppSettings(params: JSONObject): JSONObject {
+        val bridge = AutomatorBridge()
+        val pkg = params.optString("package", "")
+        return JSONObject().apply { put("success", bridge.openAppSettings(pkg)) }
+    }
+
+    private fun handleCloseAppFromRecents(): JSONObject {
+        val bridge = AutomatorBridge()
+        bridge.pressRecent()
+        Thread.sleep(1000)
+        val parts = bridge.getScreenSize().split(",")
+        val w = parts.getOrNull(0)?.toIntOrNull() ?: 1080
+        val h = parts.getOrNull(1)?.toIntOrNull() ?: 2400
+        val success = bridge.swipe(w / 2f, h / 2f, w / 2f, h / 4f, 200L)
+        return JSONObject().apply { put("success", success) }
+    }
+
+    private fun handleForceStopApp(params: JSONObject): JSONObject {
+        val pkg = params.optString("package", "")
+        val bridge = AutomatorBridge()
+        if (!bridge.openAppSettings(pkg)) return JSONObject().apply { put("success", false) }
+        Thread.sleep(1500)
+
+        fun firstNode(resourceId: String?, text: String?): JSONObject? {
+            val arr = org.json.JSONArray(bridge.findNodes(resourceId, text))
+            return if (arr.length() > 0) arr.getJSONObject(0) else null
+        }
+        fun centerOf(node: JSONObject): Pair<Float, Float> {
+            val b = node.optString("bounds").split(",")
+            val x = ((b.getOrNull(0)?.toIntOrNull() ?: 0) + (b.getOrNull(2)?.toIntOrNull() ?: 0)) / 2f
+            val y = ((b.getOrNull(1)?.toIntOrNull() ?: 0) + (b.getOrNull(3)?.toIntOrNull() ?: 0)) / 2f
+            return Pair(x, y)
+        }
+
+        val btn = firstNode("com.android.settings:id/force_stop_button", null)
+            ?: firstNode(null, "Force stop")
+            ?: firstNode(null, "FORCE STOP")
+            ?: return JSONObject().apply { put("success", false) }
+
+        val (bx, by) = centerOf(btn)
+        bridge.click(bx, by)
+        Thread.sleep(800)
+
+        // Confirm dialog
+        val ok = firstNode("android:id/button1", null)
+            ?: firstNode(null, "OK")
+        if (ok != null) {
+            val (ox, oy) = centerOf(ok)
+            bridge.click(ox, oy)
+        }
+        return JSONObject().apply { put("success", true) }
     }
 
     private fun getDashboardHtml(): String {

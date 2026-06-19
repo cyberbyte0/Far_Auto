@@ -17,6 +17,7 @@ import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 class ScriptExecutionService : Service() {
 
@@ -27,9 +28,14 @@ class ScriptExecutionService : Service() {
         const val CHANNEL_ID = "ScriptExecutionChannel"
         const val NOTIFICATION_ID = 1
         val isRunning = AtomicBoolean(false)
-        var currentScriptPath: String? = null
-        var pythonInputBuffer: String? = null
-        var executionSessionId: Int = 0
+        @Volatile var currentScriptPath: String? = null
+        @Volatile var pythonInputBuffer: String? = null
+        val executionSessionId = AtomicInteger(0)
+        // Sequence (multi-script) progress — 1-based index and total; total > 1 means a sequence run.
+        val batchIndex = AtomicInteger(0)
+        @Volatile var batchTotal: Int = 0
+        // Bumped on every run start; a preempted run's finally only resets shared state if it still owns the latest generation.
+        private val runGeneration = AtomicInteger(0)
         private var activeThread: Thread? = null
         private val logBuffer = StringBuilder()
 
@@ -56,7 +62,7 @@ class ScriptExecutionService : Service() {
             try {
                 if (Python.isStarted()) {
                     val py = Python.getInstance()
-                    py.getModule("automator").put("last_stopped_session", executionSessionId)
+                    py.getModule("automator").put("last_stopped_session", executionSessionId.get())
                 }
             } catch (e: Exception) {}
             activeThread?.interrupt()
@@ -81,7 +87,7 @@ class ScriptExecutionService : Service() {
         server = DashboardServer(this, port)
         try {
             server?.start()
-            Log.i("FarAuto", "Dashboard Server started on port $port")
+            if (BuildConfig.DEBUG) Log.i("FarAuto", "Dashboard Server started on port $port")
         } catch (e: Exception) {
             Log.e("FarAuto", "Failed to start server", e)
         }
@@ -120,29 +126,42 @@ class ScriptExecutionService : Service() {
             startForeground(NOTIFICATION_ID, initialNotif)
         }
 
-        val scriptPath = intent?.getStringExtra("SCRIPT_PATH")
-        if (scriptPath == null) return START_STICKY
+        // Accept an ordered list (SCRIPT_PATHS) for sequence runs, falling back to the single SCRIPT_PATH.
+        val paths: List<String> = intent?.getStringArrayListExtra("SCRIPT_PATHS")
+            ?: intent?.getStringExtra("SCRIPT_PATH")?.let { listOf(it) }
+            ?: return START_STICKY
+        if (paths.isEmpty()) return START_STICKY
+
+        val stopOnError = intent?.getBooleanExtra("STOP_ON_ERROR", false) ?: false
+        val delayMs = intent?.getLongExtra("INTER_DELAY_MS", 0L) ?: 0L
 
         // Kill existing script if running
         if (isRunning.get()) {
             killCurrentScript()
         }
 
-        currentScriptPath = scriptPath
         pythonInputBuffer = null
-        executionSessionId++
-        
+        currentScriptPath = paths.first()
+        batchTotal = paths.size
+        batchIndex.set(1)
+        val myGeneration = runGeneration.incrementAndGet()
+
         acquireWakeLock()
-        updateNotification("Initializing: ${scriptPath.substringAfterLast("/")}")
-        
+        updateNotification("Initializing: ${paths.first().substringAfterLast("/")}")
+
         isRunning.set(true)
         val thread = Thread {
             try {
-                runScript(scriptPath)
+                runBatch(paths, stopOnError, delayMs)
             } finally {
-                isRunning.set(false)
-                releaseWakeLock()
-                updateNotification("Script Idle")
+                // Only the latest run resets shared state — a preempted run must not clobber its successor.
+                if (runGeneration.get() == myGeneration) {
+                    isRunning.set(false)
+                    batchTotal = 0
+                    batchIndex.set(0)
+                    releaseWakeLock()
+                    updateNotification("Script Idle")
+                }
             }
         }
         activeThread = thread
@@ -154,7 +173,7 @@ class ScriptExecutionService : Service() {
     private fun acquireWakeLock() {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FarAuto::ScriptWakeLock")
-        wakeLock?.acquire(10 * 60 * 1000L /*10 minutes safety timeout*/)
+        wakeLock?.acquire(8 * 60 * 60 * 1000L) // 8-hour ceiling; always released in finally when script ends
     }
 
     private fun releaseWakeLock() {
@@ -174,27 +193,56 @@ class ScriptExecutionService : Service() {
         try {
             if (Python.isStarted()) {
                 val py = Python.getInstance()
-                py.getModule("automator").put("last_stopped_session", executionSessionId)
+                py.getModule("automator").put("last_stopped_session", executionSessionId.get())
             }
         } catch (e: Exception) {}
         activeThread?.interrupt()
         activeThread = null
+        // Release the preempted run's wake lock now; the new run acquires a fresh one.
+        releaseWakeLock()
     }
 
-    private fun runScript(path: String) {
+    /**
+     * Runs an ordered list of scripts sequentially in this worker thread. A single-element list
+     * (single-script run) is byte-for-byte identical to the legacy behaviour. For sequences
+     * (size > 1) each script gets its own Multi_-prefixed log file and a position header.
+     */
+    private fun runBatch(paths: List<String>, stopOnError: Boolean, delayMs: Long) {
+        clearLogs() // Clear the shared terminal buffer once for the whole run
+        val isSequence = paths.size > 1
+        for ((i, path) in paths.withIndex()) {
+            if (!isRunning.get()) break // Stopped mid-batch — abort the rest of the queue
+            currentScriptPath = path
+            batchIndex.set(i + 1)
+            executionSessionId.incrementAndGet() // Per-script session so check_stop() works per script
+            val ok = runOneScript(path, isSequence, i + 1, paths.size)
+            if (!isRunning.get()) break // Stopped during the script
+            if (!ok && stopOnError) break
+            // Interruptible inter-script delay (skip after the last script)
+            if (delayMs > 0 && i < paths.size - 1) {
+                val deadline = System.currentTimeMillis() + delayMs
+                while (System.currentTimeMillis() < deadline && isRunning.get()) {
+                    try { Thread.sleep(100) } catch (e: InterruptedException) { break }
+                }
+            }
+        }
+    }
+
+    /** Executes one script. Returns true on success, false on error or user stop. */
+    private fun runOneScript(path: String, isSequence: Boolean, seqIndex: Int, seqTotal: Int): Boolean {
         val scriptFile = java.io.File(path)
-        clearLogs()
 
         val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
 
-        // Per-run log file: <script_name>_<yyyy-MM-dd_HH-mm-ss>.txt in the logs folder
+        // Per-run log file: [Multi_]<script_name>_<yyyy-MM-dd_HH-mm-ss>.txt in the logs folder
         var logFile: File? = null
         var logWriter: java.io.BufferedWriter? = null
         try {
             val logsDir = MainActivity.getStorageDir(this, "logs")
             pruneOldLogs(logsDir)
             val runStamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault()).format(java.util.Date())
-            logFile = File(logsDir, "${scriptFile.name.removeSuffix(".py")}_$runStamp.txt")
+            val prefix = if (isSequence) "Multi_" else ""
+            logFile = File(logsDir, "$prefix${scriptFile.name.removeSuffix(".py")}_$runStamp.txt")
             logWriter = logFile.bufferedWriter()
         } catch (e: Exception) {
             Log.e("FarAuto", "Could not create run log file", e)
@@ -204,7 +252,7 @@ class ScriptExecutionService : Service() {
             val timestamp = sdf.format(java.util.Date())
             val formattedMessage = "[$timestamp] $message"
 
-            Log.d("FarAuto", formattedMessage)
+            if (BuildConfig.DEBUG) Log.d("FarAuto", formattedMessage)
             synchronized(logBuffer) {
                 logBuffer.append(formattedMessage).append("\n")
                 if (logBuffer.length > 100_000) {
@@ -223,37 +271,46 @@ class ScriptExecutionService : Service() {
             updateNotification(message)
         }
 
+        var success = false
         try {
             if (!Python.isStarted()) {
                 Python.start(AndroidPlatform(this))
             }
             val py = Python.getInstance()
-            
+
             val loggerUtil = py.getModule("logger_util")
-            loggerUtil.callAttr("setup_logger", 
+            loggerUtil.callAttr("setup_logger",
                 { msg: String -> log(msg) },
-                { 
+                {
                     val input = pythonInputBuffer
                     pythonInputBuffer = null
                     input
                 }
             )
-            
+
+            if (isSequence) {
+                // Self-describing header lands in both the per-script file and the live terminal.
+                log("=== Sequence $seqIndex/$seqTotal — started ${sdf.format(java.util.Date())} ===")
+                log("=== [$seqIndex/$seqTotal] ${scriptFile.name} ===")
+            }
             log("Starting script: ${scriptFile.name}")
 
             val automatorModule = py.getModule("automator")
-            automatorModule?.put("current_session", executionSessionId)
+            automatorModule?.put("current_session", executionSessionId.get())
             val automatorBridge = AutomatorBridge()
             automatorBridge.setToastPackageFilter(null) // Filters do not persist across runs
             automatorModule?.put("bridge", automatorBridge)
             automatorModule?.put("scripts_dir", MainActivity.getStorageDir(this, "scripts").absolutePath)
             automatorModule?.put("files_dir", MainActivity.getStorageDir(this, "files").absolutePath)
 
-            py.getModule("builtins")!!.get("exec")!!.call(
-                scriptFile.readText(),
-                py.getModule("__main__")!!.get("__dict__")
-            )
+            // exec() automatically inserts __builtins__ into freshGlobals when absent.
+            // __name__ must be set so `if __name__ == "__main__":` blocks execute correctly.
+            val builtins = py.getModule("builtins")!!
+            val freshGlobals = builtins.callAttr("dict")
+            freshGlobals.callAttr("__setitem__", "__name__", "__main__")
+            builtins.callAttr("exec", scriptFile.readText(), freshGlobals)
             log("Script finished successfully")
+            success = true
         } catch (e: Exception) {
             if (e.message?.contains("Script stopped") == true || e is InterruptedException) {
                 log("Script stopped by user")
@@ -269,6 +326,7 @@ class ScriptExecutionService : Service() {
                 Log.e("FarAuto", "Run log close failed", e)
             }
         }
+        return success
     }
 
     private fun pruneOldLogs(logsDir: File, keep: Int = 50) {
@@ -284,10 +342,12 @@ class ScriptExecutionService : Service() {
 
     private fun updateNotification(lastLog: String) {
         val now = System.currentTimeMillis()
-        if (now - lastNotifTime < 1000) return 
+        if (now - lastNotifTime < 1000) return
         lastNotifTime = now
 
-        val notification = createNotification(lastLog.takeLast(50))
+        val total = batchTotal
+        val prefix = if (total > 1) "[${batchIndex.get()}/$total] " else ""
+        val notification = createNotification(prefix + lastLog.takeLast(50))
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(NOTIFICATION_ID, notification)
     }
