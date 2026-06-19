@@ -28,7 +28,8 @@
 - 🤖 **Live Agent Mode (MCP)** — Connect external AI models (Claude, Cursor, Cline) to control your device using the Model Context Protocol.
 - 🛡️ **Security First** — Path-traversal protection and cryptographically secure auth tokens.
 - 📦 **Backup & Import** — Export all scripts as a ZIP and re-import `.py` or `.zip` files from both the app UI and the web console.
-- 🗒️ **Run Logs** — Every script run (web or app) is saved to a timestamped log file (`script_name_YYYY-MM-DD_HH-mm-ss.txt`); the latest 50 runs are kept.
+- 🔗 **Multi-Script Sequences** — Select several scripts, reorder them, and run the whole batch in one go from either the app or the web console, with a configurable inter-script delay and a per-run **stop-on-error** toggle.
+- 🗒️ **Run Logs** — Every script run (web or app) is saved to a timestamped log file (`script_name_YYYY-MM-DD_HH-mm-ss.txt`, prefixed `Multi_` when run as part of a sequence); the latest 50 runs are kept.
 - 🎥 **Screen Recording** — Record the screen to MP4 from scripts after a one-time consent (MediaProjection).
 
 ---
@@ -170,6 +171,7 @@ The new web interface is a full-featured IDE and Terminal:
 - **Integrated Workflow**: "Save & Run" directly from the editor tab.
 - **Smart Console**: Automatic bottom-scrolling with manual scroll override.
 - **Management**: Rename, Reset, or Delete scripts with ease.
+- **Run Queue**: Tick multiple scripts, reorder them, and launch the batch as one sequence with delay + stop-on-error options. A blinking **● SEQ n/N** indicator in the header shows live sequence progress.
 - **Export / Import**: Download all scripts as a ZIP backup, or upload a `.py` file or `.zip` archive to restore scripts — no USB cable needed.
 
 ---
@@ -180,7 +182,7 @@ Far_Auto now supports the **Model Context Protocol (MCP)**, allowing AI agents (
 
 ### Setup
 1. Open the dashboard on your computer.
-2. Tap the **MCP** text in the app header on your phone.
+2. Tap the **MCP** (robot) icon in the app header on your phone.
 3. Follow the instructions in the dashboard modal to:
    - Install dependencies (`pip install mcp httpx`).
    - Save the bridge script (`far_auto_mcp.py`).
