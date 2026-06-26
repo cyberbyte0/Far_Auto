@@ -63,6 +63,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
             "/script_content" -> handleGetScriptContent(session)
             "/save_script" -> handleSaveScript(session)
             "/clear_logs" -> handleClearLogs()
+            "/banner" -> handleBanner(session)
             "/export_scripts" -> handleExportScripts(session)
             "/import_script" -> handleImportScript(session)
             "/api/rpc" -> {
@@ -262,6 +263,31 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
     private fun handleClearLogs(): Response {
         ScriptExecutionService.clearLogs()
         return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"logs cleared\"}")
+    }
+
+    /**
+     * Terminal welcome banner persisted on the device so every browser/device that
+     * connects sees the same text.
+     *  - GET  /banner            → { "banner": <string|null> }  (null = use built-in default)
+     *  - POST /banner            → save the form field `postData` as the banner
+     *  - POST /banner?reset=1    → clear the saved banner (revert to default)
+     */
+    private fun handleBanner(session: IHTTPSession): Response {
+        val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        if (session.method == NanoHTTPD.Method.POST) {
+            if (session.parms["reset"] == "1") {
+                prefs.edit().remove("dashboard_banner").apply()
+                return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"reset\"}")
+            }
+            val map = HashMap<String, String>()
+            try { session.parseBody(map) } catch (e: Exception) {}
+            val banner = map["postData"] ?: session.parms["postData"] ?: ""
+            prefs.edit().putString("dashboard_banner", banner).apply()
+            return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"saved\"}")
+        }
+        val banner = prefs.getString("dashboard_banner", null)
+        val obj = JSONObject().apply { put("banner", banner ?: JSONObject.NULL) }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", obj.toString())
     }
 
     private fun handleRpc(session: IHTTPSession): Response {
