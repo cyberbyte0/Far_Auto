@@ -6,6 +6,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 
@@ -34,18 +35,29 @@ class SettingsActivity : AppCompatActivity() {
 
         val etToken = findViewById<EditText>(R.id.etToken)
         etToken.setText(prefs.getString("dashboard_token", ""))
-        
+
+        val etBanner = findViewById<EditText>(R.id.etBanner)
+        etBanner.setText(prefs.getString("dashboard_banner", ""))
+        findViewById<Button>(R.id.btnResetBanner).setOnClickListener {
+            etBanner.setText("")
+            prefs.edit().remove("dashboard_banner").apply()
+            Toast.makeText(this, "Banner reset to default", Toast.LENGTH_SHORT).show()
+        }
+
         findViewById<View>(R.id.btnSaveSettings).setOnClickListener {
             val port = etPort.text.toString().toIntOrNull() ?: 8080
             val token = etToken.text.toString().trim()
             val dashboardEnabled = swDashboard.isChecked
             val mcpEnabled = swMcp.isChecked
-            
+            val banner = etBanner.text.toString()
+
             prefs.edit().apply {
                 putBoolean("dashboard_enabled", dashboardEnabled)
                 putBoolean("mcp_enabled", mcpEnabled)
                 putInt("dashboard_port", port)
                 putString("dashboard_token", token)
+                // Empty banner = revert to the dashboard's built-in default.
+                if (banner.isBlank()) remove("dashboard_banner") else putString("dashboard_banner", banner)
                 apply()
             }
             

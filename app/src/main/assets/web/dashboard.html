@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="candy">
 <head>
     <meta charset="UTF-8">
     <title>Far_Auto | Console</title>
@@ -158,9 +158,415 @@
         .setup-card { max-width: 800px; margin: 0 auto; }
         .code-box { background: var(--terminal-bg); color: var(--terminal-text); padding: 15px; border-radius: 10px; overflow-x: auto; position: relative; font-size: 13px; font-family: 'JetBrains Mono', monospace; margin-bottom: 20px; }
         .copy-btn { position: absolute; top: 10px; right: 10px; background: var(--accent); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+
+        /* =========================================================================
+           CANDY THEME  (data-theme="candy")
+           Soft pastel candymorphism: puffy raised surfaces (dual outer shadow +
+           inner highlight), recessed inputs/terminal (inset shadows). Pure CSS —
+           static shadows/gradients only, so no real-time blur and no GPU cost on
+           scroll. Fully scoped under [data-theme="candy"]; dark/light are untouched.
+           ========================================================================= */
+        html[data-theme="candy"] {
+            --bg: #ece5ea;
+            --panel: #f2ecf4;
+            --header: #f2ecf4;
+            --border: rgba(150, 130, 165, 0.18);
+            --accent: #8b6fb8;
+            --accent-dim: rgba(167, 139, 202, 0.16);
+            --text: #4a3f57;
+            --text-dim: #8a7d96;
+            --danger: #c97f8a;
+            --success: #5fb89a;
+            --terminal-bg: #2c2636;
+            --terminal-text: #ece6f5;
+            --input-bg: #e8e1ed;
+            --shadow: 8px 8px 18px rgba(150, 130, 165, 0.28), -8px -8px 18px rgba(255, 255, 255, 0.85);
+
+            /* Reusable candy recipes */
+            --candy-raised:
+                9px 9px 20px rgba(150, 130, 165, 0.28),
+                -9px -9px 20px rgba(255, 255, 255, 0.88),
+                inset 2px 2px 4px rgba(255, 255, 255, 0.55),
+                inset -4px -4px 9px rgba(150, 130, 165, 0.12);
+            --candy-raised-sm:
+                5px 5px 12px rgba(150, 130, 165, 0.26),
+                -5px -5px 12px rgba(255, 255, 255, 0.85),
+                inset 2px 2px 3px rgba(255, 255, 255, 0.5),
+                inset -3px -3px 6px rgba(150, 130, 165, 0.12);
+            --candy-inset:
+                inset 5px 5px 10px rgba(150, 130, 165, 0.28),
+                inset -5px -5px 10px rgba(255, 255, 255, 0.85);
+            --candy-surface: linear-gradient(145deg, #f7f2f9, #e9e1ee);
+        }
+
+        /* Soft "cloth" backdrop faked with layered radial gradients (no image asset) */
+        html[data-theme="candy"] body {
+            background:
+                radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.55), transparent 42%),
+                radial-gradient(circle at 85% 0%, rgba(214, 196, 222, 0.45), transparent 48%),
+                radial-gradient(circle at 70% 95%, rgba(208, 190, 218, 0.40), transparent 50%),
+                var(--bg);
+        }
+
+        /* Raised surfaces */
+        html[data-theme="candy"] .header {
+            background: var(--candy-surface);
+            border-bottom: none;
+            box-shadow: 0 8px 18px rgba(150, 130, 165, 0.22);
+        }
+        html[data-theme="candy"] .panel,
+        html[data-theme="candy"] .modal-card,
+        html[data-theme="candy"] .menu {
+            background: var(--candy-surface);
+            border: none;
+            border-radius: 26px;
+            box-shadow: var(--candy-raised);
+        }
+        html[data-theme="candy"] .panel-header { border-bottom: 1px solid var(--border); }
+
+        /* Pills & toggle as little candy nuggets */
+        html[data-theme="candy"] .status-pill,
+        html[data-theme="candy"] .rec-pill,
+        html[data-theme="candy"] .seq-pill {
+            border: none;
+            box-shadow: var(--candy-raised-sm);
+            background: var(--candy-surface);
+            color: var(--accent);
+        }
+        html[data-theme="candy"] .theme-toggle {
+            border: none;
+            border-radius: 50%;
+            background: var(--candy-surface);
+            box-shadow: var(--candy-raised-sm);
+        }
+        html[data-theme="candy"] .theme-toggle:active { box-shadow: var(--candy-inset); }
+
+        /* Buttons — puffy, press inward on tap */
+        html[data-theme="candy"] .btn { border-radius: 16px; border: none; }
+        html[data-theme="candy"] .btn-primary {
+            background: linear-gradient(145deg, #9a7fc6, #7a5fa8);
+            color: #fff;
+            box-shadow:
+                5px 5px 12px rgba(120, 95, 160, 0.40),
+                -4px -4px 10px rgba(255, 255, 255, 0.50),
+                inset 2px 2px 4px rgba(255, 255, 255, 0.35),
+                inset -3px -3px 6px rgba(75, 55, 105, 0.40);
+        }
+        html[data-theme="candy"] .btn-ghost,
+        html[data-theme="candy"] .btn-danger {
+            background: var(--candy-surface);
+            border: none;
+            box-shadow: var(--candy-raised-sm);
+        }
+        html[data-theme="candy"] .btn-danger { color: var(--danger); }
+        html[data-theme="candy"] .btn:hover { filter: brightness(1.03); transform: translateY(-1px); }
+        html[data-theme="candy"] .btn:active {
+            transform: translateY(1px);
+            box-shadow:
+                inset 4px 4px 9px rgba(120, 95, 160, 0.35),
+                inset -3px -3px 7px rgba(255, 255, 255, 0.45);
+        }
+
+        /* Recessed inputs */
+        html[data-theme="candy"] .input-dark,
+        html[data-theme="candy"] .conflict-list {
+            background: var(--input-bg);
+            border: none;
+            border-radius: 14px;
+            box-shadow: var(--candy-inset);
+        }
+        html[data-theme="candy"] .input-dark:focus {
+            box-shadow: var(--candy-inset), 0 0 0 2px var(--accent-dim);
+        }
+        html[data-theme="candy"] .cbox {
+            border: none;
+            background: var(--input-bg);
+            box-shadow: var(--candy-inset);
+        }
+        html[data-theme="candy"] .cbox:checked {
+            background: linear-gradient(145deg, #9a7fc6, #7a5fa8);
+            box-shadow: var(--candy-raised-sm);
+        }
+
+        /* Script rows as raised candy bars */
+        html[data-theme="candy"] .script-item {
+            background: var(--candy-surface);
+            box-shadow: var(--candy-raised-sm);
+            margin-bottom: 12px;
+            border-radius: 18px;
+        }
+        html[data-theme="candy"] .script-item:hover { filter: brightness(1.02); }
+        html[data-theme="candy"] .queue-row { background: var(--candy-surface); box-shadow: var(--candy-raised-sm); border-radius: 14px; }
+
+        /* Tabs: active tab pops out */
+        html[data-theme="candy"] .tabs { background: transparent; border-bottom: none; }
+        html[data-theme="candy"] .tab-btn.active { background: var(--candy-surface); box-shadow: var(--candy-raised-sm); }
+
+        /* Terminal & code as a recessed dark screen embedded in the candy */
+        html[data-theme="candy"] #log-terminal,
+        html[data-theme="candy"] .code-box {
+            border-radius: 18px;
+            box-shadow: inset 6px 6px 14px rgba(0, 0, 0, 0.40), inset -3px -3px 10px rgba(255, 255, 255, 0.06);
+        }
+        html[data-theme="candy"] #log-terminal { margin: 14px; }
+        html[data-theme="candy"] .terminal-controls,
+        html[data-theme="candy"] .editor-footer { background: transparent; border-top: 1px solid var(--border); }
+        html[data-theme="candy"] .gutter::before { background: rgba(150, 130, 165, 0.25); border-radius: 8px; }
+
+        /* ---------- CANDY DETAILING ---------- */
+
+        /* Faint cloth grain over the backdrop (inline SVG noise — no asset, CSP-safe). */
+        html[data-theme="candy"] body {
+            background-color: var(--bg);
+            background-image:
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E"),
+                radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.55), transparent 42%),
+                radial-gradient(circle at 85% 0%, rgba(214, 196, 222, 0.45), transparent 48%),
+                radial-gradient(circle at 70% 95%, rgba(208, 190, 218, 0.40), transparent 50%);
+            background-repeat: repeat, no-repeat, no-repeat, no-repeat;
+            background-size: 140px 140px, auto, auto, auto;
+        }
+
+        /* Buttons & checkboxes physically squish inward on press. */
+        html[data-theme="candy"] .btn { transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease; }
+        html[data-theme="candy"] .btn:active {
+            transform: translateY(1px) scale(0.985);
+            box-shadow:
+                inset 4px 4px 9px rgba(120, 95, 160, 0.30),
+                inset -3px -3px 7px rgba(255, 255, 255, 0.55);
+        }
+        html[data-theme="candy"] .btn-primary:active {
+            box-shadow:
+                inset 4px 4px 9px rgba(70, 50, 100, 0.45),
+                inset -3px -3px 7px rgba(255, 255, 255, 0.25);
+        }
+        html[data-theme="candy"] .cbox:active { box-shadow: var(--candy-inset); }
+
+        /* Script rows lift on hover for a tactile, pick-up-able feel. */
+        html[data-theme="candy"] .script-item { transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; }
+        html[data-theme="candy"] .script-item:hover { transform: translateY(-2px); box-shadow: var(--candy-raised); filter: none; }
+
+        /* Tab bar as a recessed candy segmented control with a raised active pill. */
+        html[data-theme="candy"] .tabs {
+            background: var(--input-bg);
+            box-shadow: var(--candy-inset);
+            border-radius: 16px;
+            margin: 14px 16px 0;
+            padding: 6px;
+            gap: 6px;
+            align-self: flex-start;
+        }
+        html[data-theme="candy"] .tab-btn { border-radius: 11px; }
+
+        /* Candy scrollbars (WebKit). Light track-less thumbs; darker inside the terminal. */
+        html[data-theme="candy"] ::-webkit-scrollbar { width: 12px; height: 12px; }
+        html[data-theme="candy"] ::-webkit-scrollbar-track { background: transparent; }
+        html[data-theme="candy"] ::-webkit-scrollbar-thumb {
+            border: 3px solid transparent;
+            background-clip: padding-box;
+            border-radius: 10px;
+            background-color: #cabfd6;
+        }
+        html[data-theme="candy"] #log-terminal::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.18); }
+
+        /* The AI-setup overlay is the deliberate candy+glass accent: frosted panel. */
+        html[data-theme="candy"] #setup-overlay {
+            background: rgba(243, 237, 245, 0.62);
+            backdrop-filter: blur(16px) saturate(1.15);
+            -webkit-backdrop-filter: blur(16px) saturate(1.15);
+        }
+        html[data-theme="candy"] .setup-card {
+            background: var(--candy-surface);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 22px;
+            box-shadow: var(--candy-raised);
+            padding: 24px;
+        }
+
+        /* Tinted text selection. */
+        html[data-theme="candy"] ::selection { background: rgba(139, 111, 184, 0.28); }
+
+        /* ---------- CANDY ANIMATIONS ---------- */
+        @keyframes candyRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+        @keyframes candyFade { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes candyPop  { from { opacity: 0; transform: scale(0.94) translateY(6px); } to { opacity: 1; transform: none; } }
+
+        /* Panels & header glide in on load (right panel slightly staggered). */
+        html[data-theme="candy"] .header      { animation: candyFade 0.6s ease both; }
+        html[data-theme="candy"] .left-panel  { animation: candyRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        html[data-theme="candy"] .right-panel { animation: candyRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both; }
+
+        /* Script rows fade in as the list renders. */
+        html[data-theme="candy"] .script-item { animation: candyFade 0.25s ease both; }
+
+        /* Menus, modals and the setup overlay pop into place. */
+        html[data-theme="candy"] .menu.open { animation: candyPop 0.18s ease both; }
+        html[data-theme="candy"] .modal-overlay.open .modal-card { animation: candyPop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        html[data-theme="candy"] #setup-overlay { animation: candyFade 0.3s ease both; }
+        html[data-theme="candy"] #setup-overlay .setup-card { animation: candyPop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+        /* Springy buttons (bounce on hover-in, squish on press). */
+        html[data-theme="candy"] .btn {
+            transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, filter 0.15s ease;
+        }
+
+        /* Theme toggle gives a playful tilt + pop. */
+        html[data-theme="candy"] .theme-toggle {
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease;
+        }
+        html[data-theme="candy"] .theme-toggle:hover  { transform: rotate(-12deg) scale(1.06); }
+        html[data-theme="candy"] .theme-toggle:active { transform: scale(0.9); }
+
+        /* Live REC / sequence pills get a soft breathing glow. */
+        @keyframes candyBreath {
+            0%, 100% { box-shadow: var(--candy-raised-sm); }
+            50%      { box-shadow: var(--candy-raised-sm), 0 0 0 4px var(--accent-dim); }
+        }
+        html[data-theme="candy"] .rec-pill,
+        html[data-theme="candy"] .seq-pill { animation: candyBreath 2s ease-in-out infinite; }
+
+        /* Refresh button spins while the script list is loading (all themes). */
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .btn.spinning { animation: spin 0.6s linear infinite; pointer-events: none; }
+
+        /* Terminal welcome banner (all themes). */
+        .term-banner { display: block; white-space: pre; color: var(--accent); font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+        .term-edit-btn {
+            position: absolute; top: 10px; right: 14px; z-index: 8;
+            width: 30px; height: 30px; border-radius: 9px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(127, 127, 127, 0.18); color: var(--terminal-text);
+            border: 1px solid var(--border); opacity: 0.45; font-size: 14px;
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+        .term-edit-btn:hover { opacity: 1; transform: translateY(-1px); }
+        .banner-input {
+            width: 100%; height: 200px; resize: vertical; margin-bottom: 16px;
+            background: var(--terminal-bg); color: var(--terminal-text);
+            border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+            font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5;
+            white-space: pre; overflow: auto; outline: none;
+        }
+        html[data-theme="candy"] .banner-input { border: none; box-shadow: var(--candy-inset); }
+        .term-status { display: block; margin-top: 6px; opacity: 0.85; }
+        .term-status-ok { color: var(--success); }
+
+        /* Animated "typing" dots on the idle "Waiting for connection" terminal state. */
+        .term-waiting .dots::after { content: ""; animation: typingDots 1.6s steps(1, end) infinite; }
+        @keyframes typingDots {
+            0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; } 100% { content: ""; }
+        }
+
+        /* Success/error toast with an animated drawn check (all themes; candy gets a softer shell). */
+        .toast {
+            position: fixed; left: 50%; bottom: 32px; transform: translate(-50%, 20px);
+            display: flex; align-items: center; gap: 10px;
+            background: var(--panel); color: var(--text);
+            padding: 12px 18px; border-radius: 14px; border: 1px solid var(--border);
+            box-shadow: var(--shadow); font-size: 0.9rem; font-weight: 600;
+            opacity: 0; z-index: 500; pointer-events: none;
+            transition: opacity 0.26s ease, transform 0.26s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .toast.show { opacity: 1; transform: translate(-50%, 0); }
+        .toast .toast-ico { width: 22px; height: 22px; flex-shrink: 0; color: var(--success); }
+        .toast svg.toast-ico { fill: none; stroke: var(--success); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+        .toast.show svg.toast-ico path { stroke-dasharray: 30; stroke-dashoffset: 30; animation: checkDraw 0.4s ease 0.12s forwards; }
+        .toast.toast-err .toast-ico { color: var(--danger); }
+        @keyframes checkDraw { to { stroke-dashoffset: 0; } }
+        html[data-theme="candy"] .toast { background: var(--candy-surface); border: none; border-radius: 16px; box-shadow: var(--candy-raised); }
+
+        /* One-time light sheen sweeping across each panel on first load (candy only). */
+        html[data-theme="candy"] .panel { position: relative; }
+        html[data-theme="candy"] .panel::before {
+            content: ""; position: absolute; inset: 0; border-radius: inherit;
+            z-index: 6; pointer-events: none;
+            background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.40) 50%, transparent 65%);
+            transform: translateX(-160%);
+            animation: candySheen 1.2s ease-out 0.35s 1 forwards;
+        }
+        @keyframes candySheen { to { transform: translateX(160%); } }
+
+        /* Blinking terminal prompt caret before the command input (candy only). */
+        .term-prompt { display: none; }
+        html[data-theme="candy"] .term-prompt {
+            display: inline-block;
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.2rem;
+            font-weight: 700;
+            line-height: 1;
+            animation: caretBlink 1.1s step-end infinite;
+        }
+        @keyframes caretBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* ---------- FUNCTIONAL FEEDBACK & MICRO-INTERACTIONS ---------- */
+
+        /* Toast width cap so longer messages wrap. */
+        .toast { max-width: min(420px, 88vw); }
+        .toast span:last-child { line-height: 1.35; }
+
+        /* Status badge state colors (all themes). Glow uses filter so it never
+           fights the candy nugget's box-shadow. */
+        .status-pill.st-ok   { color: var(--accent); }
+        .status-pill.st-run  { color: var(--success); animation: badgeGlow 1.8s ease-in-out infinite; }
+        .status-pill.st-warn { color: #d97706; }
+        .status-pill.st-err  { color: var(--danger); }
+        @keyframes badgeGlow {
+            0%, 100% { filter: drop-shadow(0 0 0 rgba(16, 185, 129, 0)); }
+            50%      { filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.55)); }
+        }
+
+        /* Stop button breathes red while a script is actually running. */
+        .btn-danger.running { animation: stopGlow 1.4s ease-in-out infinite; }
+        @keyframes stopGlow {
+            0%, 100% { filter: drop-shadow(0 0 0 rgba(239, 68, 68, 0)); }
+            50%      { filter: drop-shadow(0 0 7px rgba(239, 68, 68, 0.60)); }
+        }
+
+        /* Connect button shows an inline spinner while validating the token. */
+        .btn-loading { opacity: 0.85; }
+        .btn-loading::after {
+            content: ""; width: 13px; height: 13px; margin-left: 8px;
+            border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%;
+            display: inline-block; vertical-align: -2px; animation: spin 0.6s linear infinite;
+        }
+
+        /* Tab content quick fade-in on switch. */
+        .tab-anim { animation: tabFade 0.25s ease; }
+        @keyframes tabFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+        /* Checkbox check pops in when selected. */
+        .cbox:checked::after { animation: cboxPop 0.2s ease; }
+        @keyframes cboxPop {
+            0%   { transform: rotate(45deg) scale(0); }
+            60%  { transform: rotate(45deg) scale(1.25); }
+            100% { transform: rotate(45deg) scale(1); }
+        }
+
+        /* Smooth crossfade when switching themes (transitions enabled only briefly). */
+        html.theme-anim, html.theme-anim * {
+            transition: background-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease, fill 0.4s ease !important;
+        }
+
+        /* Respect users who prefer less motion. */
+        @media (prefers-reduced-motion: reduce) {
+            html[data-theme="candy"] *,
+            html[data-theme="candy"] *::before,
+            html[data-theme="candy"] *::after { animation: none !important; transition: none !important; }
+            .btn.spinning,
+            .term-waiting .dots::after,
+            .toast.show svg.toast-ico path,
+            .status-pill.st-run,
+            .btn-danger.running,
+            .btn-loading::after,
+            .tab-anim,
+            .cbox:checked::after { animation: none !important; }
+            .toast { transition: opacity 0.2s ease !important; }
+            html.theme-anim, html.theme-anim * { transition: none !important; }
+        }
     </style>
 </head>
-<body data-theme="dark">
+<body data-theme="candy">
     <div class="header">
         <div class="logo-group">
             <h1>Far_Auto</h1>
@@ -169,14 +575,14 @@
             <div id="seq-indicator" class="seq-pill" style="display: none;"><span class="seq-dot"></span><span id="seq-text">SEQ</span></div>
         </div>
         <div class="auth-bar">
-            <div class="theme-toggle" onclick="toggleTheme()" id="theme-icon">☀️</div>
+            <div class="theme-toggle" onclick="toggleTheme()" id="theme-icon">🍭</div>
             <input type="password" id="token-input" class="input-dark" placeholder="Auth Token">
-            <button class="btn btn-primary" onclick="saveToken()">Connect</button>
+            <button id="btn-connect" class="btn btn-primary" onclick="saveToken()">Connect</button>
         </div>
     </div>
     <div class="main-content">
         <div class="panel left-panel">
-            <div class="panel-header"><h3>Scripts</h3><div style="display: flex; gap: 8px;"><button class="btn btn-ghost btn-trash" style="padding: 8px" onclick="bulkDelete()" title="Delete selected scripts"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button><button class="btn btn-ghost" style="padding: 8px" onclick="loadScripts()">↻</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="toggleExportMenu(event)" title="Download backup ZIP">Export ▾</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="importScripts()" title="Upload .py or .zip">Import</button><button class="btn btn-primary" onclick="newScript()">+ New</button></div></div>
+            <div class="panel-header"><h3>Scripts</h3><div style="display: flex; gap: 8px;"><button class="btn btn-ghost btn-trash" style="padding: 8px" onclick="bulkDelete()" title="Delete selected scripts"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button><button id="btnRefreshList" class="btn btn-ghost" style="padding: 8px" onclick="loadScripts()">↻</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="toggleExportMenu(event)" title="Download backup ZIP">Export ▾</button><button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="importScripts()" title="Upload .py or .zip">Import</button><button class="btn btn-primary" onclick="newScript()">+ New</button></div></div>
             <input type="file" id="import-file-input" accept=".py,.zip" style="display:none" onchange="handleImportFile(event)">
             <div class="list-toolbar">
                 <div class="search-wrap"><span class="search-ico">🔍</span><input type="text" id="script-search" class="input-dark" placeholder="Search scripts…" oninput="renderScriptList()"></div>
@@ -207,7 +613,8 @@
             <div class="tabs"><button id="tab-terminal" class="tab-btn active" onclick="switchTab('terminal')">Terminal</button><button id="tab-editor" class="tab-btn" onclick="switchTab('editor')">Editor</button></div>
 
             <div id="terminal-container" style="display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; position: relative;">
-                <div id="log-terminal" onclick="focusTerminalInput()" style="cursor: text;">Waiting for connection...</div>
+                <button id="btn-edit-banner" class="term-edit-btn" onclick="openBannerEditor()" title="Edit welcome banner">✎</button>
+                <div id="log-terminal" onclick="focusTerminalInput()" style="cursor: text;"><span class="term-waiting">Waiting for connection<span class="dots"></span></span></div>
 
                 <div id="setup-overlay">
                     <div class="setup-card">
@@ -249,8 +656,8 @@
                 </div>
 
                 <div class="terminal-controls">
-                    <div style="display: flex; gap: 12px;"><input type="text" id="term-input" class="input-dark" style="flex-grow: 1;" placeholder="Command input..." onkeypress="if(event.key === 'Enter') sendInput()"><button class="btn btn-primary" onclick="sendInput()">Send</button></div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;"><div style="display: flex; gap: 12px;"><button class="btn btn-danger" onclick="stopCurrent()" title="Stop everything (ends the whole sequence)">Stop Script</button><button id="btn-skip" class="btn btn-ghost" style="display:none; border-color: var(--accent); color: var(--accent);" onclick="skipCurrent()" title="End the current script and continue with the next in the sequence">⏭ Skip Current</button></div><div style="display: flex; gap: 12px;"><button class="btn btn-ghost" onclick="copyConsole()">Copy Output</button><button class="btn btn-ghost" onclick="clearConsole()">Clear Console</button></div></div>
+                    <div style="display: flex; gap: 12px; align-items: center;"><span class="term-prompt">&rsaquo;</span><input type="text" id="term-input" class="input-dark" style="flex-grow: 1;" placeholder="Command input..." onkeypress="if(event.key === 'Enter') sendInput()"><button class="btn btn-primary" onclick="sendInput()">Send</button></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;"><div style="display: flex; gap: 12px;"><button id="btn-stop" class="btn btn-danger" onclick="stopCurrent()" title="Stop everything (ends the whole sequence)">Stop Script</button><button id="btn-skip" class="btn btn-ghost" style="display:none; border-color: var(--accent); color: var(--accent);" onclick="skipCurrent()" title="End the current script and continue with the next in the sequence">⏭ Skip Current</button></div><div style="display: flex; gap: 12px;"><button class="btn btn-ghost" onclick="copyConsole()">Copy Output</button><button class="btn btn-ghost" onclick="clearConsole()">Clear Console</button></div></div>
                 </div>
             </div>
 
@@ -279,8 +686,99 @@
             </div>
         </div>
     </div>
+    <div class="modal-overlay" id="banner-modal" onclick="if(event.target===this) closeBannerEditor()">
+        <div class="modal-card">
+            <h3>Edit terminal banner</h3>
+            <p>Shown when the console is empty. Plain monospace text — line breaks are kept. Saved in this browser.</p>
+            <textarea id="banner-input" class="banner-input" spellcheck="false"></textarea>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" onclick="closeBannerEditor()">Cancel</button>
+                <button class="btn btn-ghost" onclick="resetBanner()">Reset to default</button>
+                <button class="btn btn-primary" onclick="saveBanner()">Save</button>
+            </div>
+        </div>
+    </div>
     <script>
         let currentToken = localStorage.getItem('auto_token') || '';
+        let connected = false; // true once the server actually answers /status (i.e. authenticated)
+
+        // ===== Terminal welcome banner =====
+        // This is the DEFAULT; it can be edited live from the dashboard (✎ button on
+        // the terminal) and is saved per-browser. "Reset to default" restores this.
+        const DEFAULT_TERMINAL_BANNER = [
+            '',
+            '   ╔═╗ ╔═╗ ╦═╗   ╔═╗ ╦ ╦ ╔╦╗ ╔═╗',
+            '   ╠╣  ╠═╣ ╠╦╝   ╠═╣ ║ ║  ║  ║ ║',
+            '   ╚   ╩ ╩ ╩╚═   ╩ ╩ ╚═╝  ╩  ╚═╝',
+            '',
+            '   Python UI automation · web console',
+            '',
+            '   ▸ Connect with your token to begin',
+            '   ▸ Pick a script and press ▶ to run it',
+            '   ▸ Live output streams here as it runs',
+            '   ▸ When a script asks for input, type it in the box below',
+            '   ▸ Switch theme (🌙 / ☀️ / 🍭) with the button up top',
+            '',
+        ].join('\n');
+
+        function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+        // Banner source of truth is the device (loaded via /banner). Until that loads,
+        // fall back to a local cache, then the built-in default.
+        //   serverBanner: undefined = not loaded, null = device says "use default", string = custom
+        let serverBanner;
+        function getBanner() {
+            if (serverBanner !== undefined) return serverBanner === null ? DEFAULT_TERMINAL_BANNER : serverBanner;
+            const cached = localStorage.getItem('far_auto_banner');
+            return cached !== null ? cached : DEFAULT_TERMINAL_BANNER;
+        }
+        async function loadBanner() {
+            const res = await api('/banner');
+            if (!(res && res.ok)) return;
+            try {
+                const data = await res.json();
+                serverBanner = (data.banner == null) ? null : data.banner;
+                if (serverBanner === null) localStorage.removeItem('far_auto_banner');
+                else localStorage.setItem('far_auto_banner', serverBanner);
+                showBanner();
+            } catch (e) {}
+        }
+
+        // Render the banner + a status line into the terminal.
+        let bannerConnected = null; // connection state the banner was last drawn for
+        function showBanner() {
+            const term = document.getElementById('log-terminal');
+            if (!term) return;
+            bannerConnected = connected;
+            const status = connected
+                ? '<span class="term-status-ok">● Connected — pick a script and press ▶ to run.</span>'
+                : '<span class="term-waiting">Waiting for connection<span class="dots"></span></span>';
+            term.innerHTML = '<div class="term-banner">' + esc(getBanner()) + '</div><div class="term-status">' + status + '</div>';
+        }
+
+        // ---- In-app banner editor ----
+        function openBannerEditor() {
+            document.getElementById('banner-input').value = getBanner();
+            document.getElementById('banner-modal').classList.add('open');
+        }
+        function closeBannerEditor() { document.getElementById('banner-modal').classList.remove('open'); }
+        async function saveBanner() {
+            const text = document.getElementById('banner-input').value;
+            serverBanner = text;
+            localStorage.setItem('far_auto_banner', text); // offline cache
+            closeBannerEditor();
+            showBanner();
+            const res = await api('/banner', 'POST', 'postData=' + encodeURIComponent(text));
+            toast(res && res.ok ? 'Banner saved to device' : 'Saved on this browser (device offline)', !!(res && res.ok));
+        }
+        async function resetBanner() {
+            serverBanner = null;
+            localStorage.removeItem('far_auto_banner');
+            document.getElementById('banner-input').value = DEFAULT_TERMINAL_BANNER;
+            showBanner();
+            await api('/banner?reset=1', 'POST');
+            toast('Banner reset to default');
+        }
         document.getElementById('token-input').value = currentToken;
         let editor, lastScriptState = false, stopPollingTimer = null, editorDirty = false;
 
@@ -295,23 +793,36 @@
         // Guards a browser refresh / tab close (the only "close" paths in this single-page UI)
         window.addEventListener('beforeunload', (e) => { if (editorDirty) { e.preventDefault(); e.returnValue = ''; } });
 
+        // Cycle order for the toggle button; icon shows the *current* theme.
+        const THEME_CYCLE = ['dark', 'light', 'candy'];
+        const THEME_ICON = { dark: '🌙', light: '☀️', candy: '🍭' };
+
+        let themeAnimTimer = null;
         function applyTheme(theme) {
+            if (!THEME_CYCLE.includes(theme)) theme = 'dark';
+            // Briefly enable color/shadow transitions so the swap crossfades, then
+            // remove them so normal interactions stay snappy.
+            document.documentElement.classList.add('theme-anim');
+            clearTimeout(themeAnimTimer);
+            themeAnimTimer = setTimeout(() => document.documentElement.classList.remove('theme-anim'), 420);
             document.documentElement.setAttribute('data-theme', theme);
             document.body.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
-            document.getElementById('theme-icon').innerText = theme === 'dark' ? '☀️' : '🌙';
+            document.getElementById('theme-icon').innerText = THEME_ICON[theme];
             if (editor) {
+                // candy is a light theme for the editor's purposes
                 editor.setTheme(theme === 'dark' ? "ace/theme/tomorrow_night_eighties" : "ace/theme/chrome");
             }
         }
 
         function toggleTheme() {
-            const current = document.documentElement.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-            applyTheme(current === 'dark' ? 'light' : 'dark');
+            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            const next = THEME_CYCLE[(THEME_CYCLE.indexOf(current) + 1) % THEME_CYCLE.length];
+            applyTheme(next);
         }
 
         window.onload = () => {
-            const savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            const savedTheme = localStorage.getItem('theme') || 'candy'; // candy is the default theme
             try {
                 editor = ace.edit("ace-editor");
                 editor.session.setMode("ace/mode/python");
@@ -324,15 +835,29 @@
                 editor.on('change', () => setDirty(true));
                 applyTheme(savedTheme);
             } catch(e) {}
+            showBanner();
             if(currentToken) loadScripts();
         };
 
-        function saveToken() { currentToken = document.getElementById('token-input').value; localStorage.setItem('auto_token', currentToken); loadScripts(); }
+        async function saveToken() {
+            currentToken = document.getElementById('token-input').value;
+            localStorage.setItem('auto_token', currentToken);
+            const b = document.getElementById('btn-connect');
+            const orig = b ? b.textContent : '';
+            if (b) { b.disabled = true; b.classList.add('btn-loading'); b.textContent = 'Connecting'; }
+            try { await loadScripts(); }
+            finally { if (b) { b.disabled = false; b.classList.remove('btn-loading'); b.textContent = orig; } }
+        }
         function switchTab(tab) {
             document.getElementById('tab-terminal').className = tab === 'terminal' ? 'tab-btn active' : 'tab-btn';
             document.getElementById('tab-editor').className = tab === 'editor' ? 'tab-btn active' : 'tab-btn';
-            document.getElementById('terminal-container').style.display = tab === 'terminal' ? 'flex' : 'none';
-            document.getElementById('editor-container').style.display = tab === 'editor' ? 'flex' : 'none';
+            const termC = document.getElementById('terminal-container');
+            const edC = document.getElementById('editor-container');
+            termC.style.display = tab === 'terminal' ? 'flex' : 'none';
+            edC.style.display = tab === 'editor' ? 'flex' : 'none';
+            // Re-trigger a quick fade on whichever panel is now shown.
+            const shown = tab === 'terminal' ? termC : edC;
+            shown.classList.remove('tab-anim'); void shown.offsetWidth; shown.classList.add('tab-anim');
             if (tab === 'editor' && editor) editor.resize();
             if (tab === 'terminal') focusTerminalInput();
         }
@@ -360,16 +885,23 @@
         let scriptsMeta = [];
 
         async function loadScripts() {
-            const res = await api('/scripts');
-            if (!(res && res.ok)) return;
-            const data = await res.json();
-            // Accept both the legacy string[] shape and the richer {name,modified,size}[] shape
-            scriptsMeta = data.map(x => typeof x === 'string' ? { name: x, modified: 0, size: 0 } : x);
-            availableScripts = scriptsMeta.map(s => s.name);
-            // Drop any queued scripts that no longer exist
-            queue = queue.filter(n => availableScripts.includes(n));
-            renderScriptList();
-            renderQueue();
+            const rb = document.getElementById('btnRefreshList');
+            if (rb) rb.classList.add('spinning');
+            try {
+                const res = await api('/scripts');
+                if (!(res && res.ok)) return;
+                const data = await res.json();
+                // Accept both the legacy string[] shape and the richer {name,modified,size}[] shape
+                scriptsMeta = data.map(x => typeof x === 'string' ? { name: x, modified: 0, size: 0 } : x);
+                availableScripts = scriptsMeta.map(s => s.name);
+                // Drop any queued scripts that no longer exist
+                queue = queue.filter(n => availableScripts.includes(n));
+                renderScriptList();
+                renderQueue();
+                if (serverBanner === undefined) loadBanner(); // fetch the device banner once
+            } finally {
+                if (rb) rb.classList.remove('spinning');
+            }
         }
 
         function formatWhen(ts) {
@@ -563,7 +1095,7 @@
                 switchTab('terminal');
                 document.getElementById('log-terminal').innerText = 'Starting sequence (' + queue.length + ' scripts)...';
             } else if (res) {
-                alert('Failed to start sequence');
+                toast('Failed to start sequence', false);
             }
         }
 
@@ -578,7 +1110,7 @@
             if (!name) return false;
             const fullName = name.endsWith('.py') ? name : name + '.py';
             const res = await api('/save_script?name=' + encodeURIComponent(fullName), 'POST', 'postData=' + encodeURIComponent(editor.getValue()));
-            if (res && res.ok) { setDirty(false); loadScripts(); if (!quiet) alert('Saved'); return true; }
+            if (res && res.ok) { setDirty(false); loadScripts(); if (!quiet) toast('Saved'); return true; }
             return false;
         }
 
@@ -590,13 +1122,13 @@
         async function bulkDelete() {
             const selected = queue.slice();
             if (selected.length === 0) {
-                alert('Select one or more scripts using the checkboxes, then click the bin to delete them.');
+                toast('Select scripts with the checkboxes first, then tap the bin.', false);
                 return;
             }
             const deletable = selected.filter(n => n !== 'ui_explorer.py');
             const skipped = selected.filter(n => n === 'ui_explorer.py');
             if (deletable.length === 0) {
-                alert('“ui_explorer.py” is a system script and can’t be deleted — use Reset instead.');
+                toast('“ui_explorer.py” is a system script — use Reset instead.', false);
                 return;
             }
             let msg = 'Delete ' + deletable.length + ' selected script(s)? This cannot be undone.\n\n    – ' + deletable.join('\n    – ');
@@ -612,10 +1144,24 @@
         async function renameScript(o) { const n = prompt('New name:', o); if (n && n !== o) { await api(`/rename?old_name=${encodeURIComponent(o)}&new_name=${encodeURIComponent(n)}`, 'POST'); loadScripts(); } }
         async function sendInput() { const i = document.getElementById('term-input'); await api('/input?data=' + encodeURIComponent(i.value), 'POST'); document.getElementById('log-terminal').innerText = '> ' + i.value + '\n(Sent)'; i.value = ''; }
 
+        // Small toast with an animated check (✓) / cross (✕) instead of a blocking alert.
+        function toast(msg, ok = true) {
+            const t = document.createElement('div');
+            t.className = 'toast' + (ok ? '' : ' toast-err');
+            t.innerHTML = (ok
+                ? '<svg class="toast-ico" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>'
+                : '<span class="toast-ico" style="font-size:18px">✕</span>')
+                + '<span></span>';
+            t.lastChild.textContent = msg;
+            document.body.appendChild(t);
+            requestAnimationFrame(() => t.classList.add('show'));
+            setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 260); }, 1600);
+        }
+
         function copyText(txt) {
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(txt).then(() => {
-                    alert('Copied!');
+                    toast('Copied!');
                 }).catch(() => fallbackCopy(txt));
             } else {
                 fallbackCopy(txt);
@@ -631,9 +1177,9 @@
             textArea.select();
             try {
                 document.execCommand('copy');
-                alert('Copied!');
+                toast('Copied!');
             } catch (err) {
-                alert('Copy failed');
+                toast('Copy failed', false);
             }
             document.body.removeChild(textArea);
         }
@@ -645,6 +1191,10 @@
             api('/clear_logs');
         }
 
+        // Status badge as a colored state nugget; Stop button glows while running.
+        function setBadge(el, text, state) { el.textContent = text; el.className = 'status-pill st-' + state; }
+        function setStopRunning(on) { const b = document.getElementById('btn-stop'); if (b) b.classList.toggle('running', !!on); }
+
         let clearGeneration = 0;
         setInterval(async () => {
             if (!currentToken) return;
@@ -654,10 +1204,11 @@
             const recPill = document.getElementById('rec-indicator');
             const seqPill = document.getElementById('seq-indicator');
             const skipBtn = document.getElementById('btn-skip');
-            if (!res) { badge.innerText = 'DISCONNECTED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; seqPill.style.display = 'none'; skipBtn.style.display = 'none'; return; }
-            if (res.status === 401) { badge.innerText = 'UNAUTHORIZED'; badge.style.color = 'var(--danger)'; recPill.style.display = 'none'; seqPill.style.display = 'none'; skipBtn.style.display = 'none'; return; }
+            if (!res) { connected = false; setBadge(badge, 'DISCONNECTED', 'err'); recPill.style.display = 'none'; seqPill.style.display = 'none'; skipBtn.style.display = 'none'; setStopRunning(false); return; }
+            if (res.status === 401) { connected = false; setBadge(badge, 'UNAUTHORIZED', 'err'); recPill.style.display = 'none'; seqPill.style.display = 'none'; skipBtn.style.display = 'none'; setStopRunning(false); return; }
 
             const status = await res.json();
+            connected = true;
             const isRunning = status.running;
             const inSequence = isRunning && status.batch_total > 1;
 
@@ -666,10 +1217,11 @@
             skipBtn.style.display = inSequence ? 'inline-flex' : 'none';
             if (inSequence) document.getElementById('seq-text').textContent = 'SEQ ' + status.batch_index + '/' + status.batch_total;
 
-            if (!status.accessibility_enabled) { badge.innerText = 'ACCESSIBILITY OFF'; badge.style.color = 'var(--danger)'; }
-            else if (inSequence) { badge.innerText = 'Running ' + status.batch_index + '/' + status.batch_total + ': ' + status.current_script; badge.style.color = 'var(--success)'; }
-            else if (isRunning) { badge.innerText = 'Running: ' + status.current_script; badge.style.color = 'var(--success)'; }
-            else { badge.innerText = 'Connected'; badge.style.color = 'var(--accent)'; }
+            if (!status.accessibility_enabled) { setBadge(badge, 'ACCESSIBILITY OFF', 'warn'); }
+            else if (inSequence) { setBadge(badge, 'Running ' + status.batch_index + '/' + status.batch_total + ': ' + status.current_script, 'run'); }
+            else if (isRunning) { setBadge(badge, 'Running: ' + status.current_script, 'run'); }
+            else { setBadge(badge, 'Connected', 'ok'); }
+            setStopRunning(isRunning);
 
             if (isRunning) { lastScriptState = true; clearTimeout(stopPollingTimer); stopPollingTimer = null; }
             else if (lastScriptState && !stopPollingTimer) { stopPollingTimer = setTimeout(() => { lastScriptState = false; }, 3000); }
@@ -693,7 +1245,11 @@
                         } catch(e) { console.error("Setup parse error", e); }
                     } else {
                         const term = document.getElementById('log-terminal');
-                        if (term.innerText !== logs) {
+                        if (!logs.trim()) {
+                            // No logs yet — show the welcome banner. Re-draw only when first
+                            // shown or when the connection state flips (so dots don't restart each poll).
+                            if (!term.querySelector('.term-banner') || bannerConnected !== connected) showBanner();
+                        } else if (term.innerText !== logs) {
                             const atBottom = term.scrollHeight - term.clientHeight <= term.scrollTop + 100;
                             term.innerText = logs;
                             if (atBottom) term.scrollTop = term.scrollHeight;
@@ -703,18 +1259,18 @@
             }
         }, 1000);
 
-        function clearLogsUI() { document.getElementById('log-terminal').innerText = ''; }
+        function clearLogsUI() { showBanner(); }
         function clearConsole() { clearGeneration++; clearLogsUI(); api('/clear_logs'); }
         function copyConsole() {
             const text = document.getElementById('log-terminal').innerText;
-            if (!text.trim()) { alert('Console is empty'); return; }
+            if (!text.trim()) { toast('Console is empty', false); return; }
             copyText(text);
         }
         function newScript() { if (!confirmDiscard()) return; document.getElementById('editor-filename').value = 'new.py'; if (editor) { editor.setValue('# New Script\nimport automator\n', -1); setDirty(false); } switchTab('editor'); }
 
         function toggleExportMenu(e) {
             e.stopPropagation();
-            if (!currentToken) { alert('Connect first'); return; }
+            if (!currentToken) { toast('Connect first', false); return; }
             const menu = document.getElementById('export-menu');
             const r = e.currentTarget.getBoundingClientRect();
             menu.style.top = (r.bottom + 6) + 'px';
@@ -725,10 +1281,10 @@
 
         async function exportScripts(includeLogs = false) {
             document.getElementById('export-menu')?.classList.remove('open');
-            if (!currentToken) { alert('Connect first'); return; }
+            if (!currentToken) { toast('Connect first', false); return; }
             try {
                 const res = await fetch('/export_scripts' + (includeLogs ? '?include_logs=1' : ''), { headers: { 'X-Automator-Token': currentToken } });
-                if (!res.ok) { alert('Export failed'); return; }
+                if (!res.ok) { toast('Export failed', false); return; }
                 const blob = await res.blob();
                 const a = document.createElement('a');
                 a.href = URL.createObjectURL(blob);
@@ -737,11 +1293,11 @@
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(a.href);
-            } catch (e) { alert('Export error: ' + e.message); }
+            } catch (e) { toast('Export error: ' + e.message, false); }
         }
 
         function importScripts() {
-            if (!currentToken) { alert('Connect first'); return; }
+            if (!currentToken) { toast('Connect first', false); return; }
             document.getElementById('import-file-input').click();
         }
 
@@ -752,9 +1308,9 @@
                 const res = await fetch('/import_script?mode=' + mode, { method: 'POST', headers: { 'X-Automator-Token': currentToken }, body: fd });
                 if (res.ok) return await res.json();
                 const err = await res.json().catch(() => ({}));
-                alert('Import failed: ' + (err.error || res.status));
+                toast('Import failed: ' + (err.error || res.status), false);
                 return null;
-            } catch (e) { alert('Import error: ' + e.message); return null; }
+            } catch (e) { toast('Import error: ' + e.message, false); return null; }
         }
 
         function askConflictChoice(conflicts) {

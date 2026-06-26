@@ -82,6 +82,56 @@
                         android:textColor="@color/text_secondary"
                         android:textSize="12sp" />
 
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginVertical="14dp"
+                        android:background="@color/border" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Terminal Banner"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="Shown in the web console when idle. Empty = built-in default."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp" />
+
+                    <EditText
+                        android:id="@+id/etBanner"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/bg_input_field"
+                        android:gravity="top|start"
+                        android:inputType="textMultiLine|textNoSuggestions"
+                        android:minLines="6"
+                        android:maxLines="14"
+                        android:padding="12dp"
+                        android:fontFamily="monospace"
+                        android:textSize="13sp"
+                        android:textColor="@color/text_primary"
+                        android:textColorHint="@color/text_secondary"
+                        android:hint="Leave empty for the default banner"
+                        android:autofillHints="" />
+
+                    <Button
+                        android:id="@+id/btnResetBanner"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="end"
+                        android:layout_marginTop="4dp"
+                        android:text="Reset to default"
+                        android:textColor="@color/accent" />
+
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
