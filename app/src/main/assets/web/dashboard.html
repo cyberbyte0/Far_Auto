@@ -207,7 +207,7 @@
             <div class="tabs"><button id="tab-terminal" class="tab-btn active" onclick="switchTab('terminal')">Terminal</button><button id="tab-editor" class="tab-btn" onclick="switchTab('editor')">Editor</button></div>
 
             <div id="terminal-container" style="display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; position: relative;">
-                <div id="log-terminal">Waiting for connection...</div>
+                <div id="log-terminal" onclick="focusTerminalInput()" style="cursor: text;">Waiting for connection...</div>
 
                 <div id="setup-overlay">
                     <div class="setup-card">
@@ -334,6 +334,14 @@
             document.getElementById('terminal-container').style.display = tab === 'terminal' ? 'flex' : 'none';
             document.getElementById('editor-container').style.display = tab === 'editor' ? 'flex' : 'none';
             if (tab === 'editor' && editor) editor.resize();
+            if (tab === 'terminal') focusTerminalInput();
+        }
+
+        // Click anywhere in the log area to start typing — but don't steal focus
+        // mid-selection, so copying text out of the terminal still works.
+        function focusTerminalInput() {
+            if (window.getSelection && window.getSelection().toString()) return;
+            document.getElementById('term-input').focus();
         }
 
         async function api(path, method='GET', body=null, contentType='application/x-www-form-urlencoded') {

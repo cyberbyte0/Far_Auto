@@ -9,10 +9,23 @@ files_dir = "." # Injected by ScriptExecutionService (screenshots, etc.)
 current_session = 0
 last_stopped_session = -1
 
+
+class ScriptStopped(KeyboardInterrupt):
+    """Raised by check_stop() when the user stops the script (Stop button / kill switch).
+
+    Subclasses KeyboardInterrupt — and therefore BaseException, NOT Exception — on
+    purpose: a script's broad ``except Exception`` CANNOT swallow the stop signal, so
+    stop is always honoured even in resilient try/except loops. Scripts that need
+    cleanup on stop should use a ``finally:`` block, or catch
+    ``(KeyboardInterrupt, automator.ScriptStopped)`` and then re-raise.
+    """
+    pass
+
+
 def check_stop():
-    # If the current session has been stopped, raise InterruptedError
+    # If the current session has been stopped, raise an un-swallowable stop signal.
     if current_session <= last_stopped_session:
-        raise InterruptedError("Script stopped by user")
+        raise ScriptStopped("Script stopped by user")
 
 def get_root():
     check_stop()
