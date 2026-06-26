@@ -27,11 +27,10 @@ class AndroidInput:
 
     def readline(self):
         while True:
-            try:
-                import automator
-                automator.check_stop()
-            except Exception:
-                raise KeyboardInterrupt()
+            # check_stop() raises automator.ScriptStopped (a KeyboardInterrupt /
+            # BaseException) on stop; let it propagate so a blocked input() unblocks.
+            import automator
+            automator.check_stop()
 
             val = self.input_provider()
             if val is not None:
