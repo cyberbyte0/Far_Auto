@@ -187,15 +187,32 @@
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
+    <HorizontalScrollView
+        android:id="@+id/folderScroll"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:scrollbars="none"
+        app:layout_constraintTop_toBottomOf="@id/searchBar">
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/folderChips"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="16dp"
+            app:chipSpacingHorizontal="6dp"
+            app:singleLine="true" />
+    </HorizontalScrollView>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="4dp"
         android:clipToPadding="false"
         android:paddingBottom="80dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/searchBar" />
+        app:layout_constraintTop_toBottomOf="@id/folderScroll" />
 
     <LinearLayout
         android:id="@+id/fabMenu"
@@ -256,6 +273,31 @@
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:src="@android:drawable/ic_input_add"
+                app:tint="@color/accent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/menuNewFolder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_menu_item"
+            android:elevation="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="12dp">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="New Folder"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_marginEnd="8dp" />
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_menu_add"
                 app:tint="@color/accent" />
         </LinearLayout>
 

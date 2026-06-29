@@ -27,6 +27,50 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
 
     private fun getSafeFile(baseDir: File, fileName: String): File = safeFileIn(baseDir, fileName)
 
+    /** All scripts as (profile, file) pairs — "" profile = uncategorized (scripts/ root). */
+    private fun allScripts(): List<Pair<String, File>> {
+        val dir = MainActivity.getStorageDir(context, "scripts")
+        val out = ArrayList<Pair<String, File>>()
+        dir.listFiles()?.filter { it.isFile && it.extension == "py" }
+            ?.sortedBy { it.name.lowercase() }?.forEach { out.add("" to it) }
+        dir.listFiles()?.filter { it.isDirectory }?.sortedBy { it.name.lowercase() }?.forEach { p ->
+            p.listFiles()?.filter { it.isFile && it.extension == "py" }
+                ?.sortedBy { it.name.lowercase() }?.forEach { out.add(p.name to it) }
+        }
+        return out
+    }
+
+    /**
+     * Resolves a script by name. When [profile] is non-null (the route supplied a `profile`
+     * param, even empty for root) it is honored exactly. When null (no param — e.g. legacy MCP
+     * callers), prefer the root, then fall back to the first match in any profile folder.
+     */
+    private fun resolveScriptFile(name: String, profile: String?): File {
+        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
+        if (profile != null) return safeScriptFile(scriptsDir, profile, name)
+        val rootFile = safeScriptFile(scriptsDir, "", name)
+        if (rootFile.exists()) return rootFile
+        val safeName = sanitizeFileName(name)
+        scriptsDir.listFiles()?.filter { it.isDirectory }?.sortedBy { it.name.lowercase() }?.forEach { dir ->
+            val f = File(dir, safeName)
+            if (f.exists()) {
+                Log.i("FarAuto", "Resolved '$name' to profile '${dir.name}' (no profile param)")
+                return f
+            }
+        }
+        return rootFile
+    }
+
+    /** Moves [src] into [destDir], picking a non-clobbering name and falling back to copy+delete. */
+    private fun moveFileInto(src: File, destDir: File): Boolean {
+        destDir.mkdirs()
+        var dest = File(destDir, src.name)
+        if (dest.exists()) dest = uniqueScriptName(destDir, src.name)
+        if (src.renameTo(dest)) return true
+        return try { src.copyTo(dest, overwrite = false); src.delete(); true }
+        catch (e: Exception) { Log.e("FarAuto", "Move failed: ${src.name}", e); false }
+    }
+
     override fun serve(session: IHTTPSession): Response {
         val uri = session.uri
         val providedToken = session.headers["x-automator-token"]
@@ -50,6 +94,11 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
 
         val response = when (uri) {
             "/scripts" -> handleGetScripts()
+            "/profiles" -> handleListProfiles()
+            "/create_profile" -> handleCreateProfile(session)
+            "/rename_profile" -> handleRenameProfile(session)
+            "/delete_profile" -> handleDeleteProfile(session)
+            "/move_scripts" -> handleMoveScripts(session)
             "/run" -> handleRunScript(session)
             "/run_batch" -> handleRunBatch(session)
             "/stop" -> handleStopScript()
@@ -83,8 +132,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
 
     private fun handleGetScriptContent(session: IHTTPSession): Response {
         val scriptName = session.parms["name"] ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"missing name\"}")
-        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
-        val scriptFile = getSafeFile(scriptsDir, scriptName)
+        val scriptFile = resolveScriptFile(scriptName, session.parms["profile"])
         return if (scriptFile.exists()) {
             newFixedLengthResponse(Response.Status.OK, "text/plain", scriptFile.readText())
         } else {
@@ -98,9 +146,10 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         val scriptName = session.parms["name"] ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"missing name\"}")
         val content = map["postData"] ?: session.parms["postData"] ?: ""
         val scriptsDir = MainActivity.getStorageDir(context, "scripts")
-        val scriptFile = getSafeFile(scriptsDir, scriptName)
-        
+        val scriptFile = safeScriptFile(scriptsDir, session.parms["profile"] ?: "", scriptName)
+
         return try {
+            scriptFile.parentFile?.mkdirs()
             scriptFile.writeText(content)
             newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"saved\"}")
         } catch (e: Exception) {
@@ -117,17 +166,103 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
     }
 
     private fun handleGetScripts(): Response {
-        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
-        val files = scriptsDir.listFiles()?.filter { it.extension == "py" } ?: emptyList()
         val arr = JSONArray()
-        files.sortedBy { it.name.lowercase() }.forEach { f ->
+        allScripts().forEach { (profile, f) ->
             arr.put(JSONObject().apply {
                 put("name", f.name)
+                put("profile", profile)
                 put("modified", f.lastModified())
                 put("size", f.length())
             })
         }
         return newFixedLengthResponse(Response.Status.OK, "application/json", arr.toString())
+    }
+
+    private fun handleListProfiles(): Response {
+        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
+        val arr = JSONArray()
+        scriptsDir.listFiles()?.filter { it.isDirectory }?.sortedBy { it.name.lowercase() }?.forEach { dir ->
+            arr.put(JSONObject().apply {
+                put("name", dir.name)
+                put("script_count", dir.listFiles { f -> f.isFile && f.extension == "py" }?.size ?: 0)
+            })
+        }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", arr.toString())
+    }
+
+    private fun handleCreateProfile(session: IHTTPSession): Response {
+        val name = session.parms["name"]?.takeIf { it.isNotBlank() }
+            ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"missing name\"}")
+        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
+        val dir = safeProfileDir(scriptsDir, name)
+        if (dir == scriptsDir) return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"invalid name\"}")
+        return when {
+            profileNameTaken(scriptsDir, dir.name) -> newFixedLengthResponse(Response.Status.CONFLICT, "application/json", "{\"error\":\"profile exists\"}")
+            dir.mkdirs() -> newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"created\",\"name\":${JSONObject.quote(dir.name)}}")
+            else -> newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"create failed\"}")
+        }
+    }
+
+    /** True if a profile folder named [name] already exists (case-insensitive), ignoring [except]. */
+    private fun profileNameTaken(scriptsDir: File, name: String, except: File? = null): Boolean =
+        scriptsDir.listFiles()?.any { it.isDirectory && it != except && it.name.equals(name, ignoreCase = true) } == true
+
+    private fun handleRenameProfile(session: IHTTPSession): Response {
+        val oldName = session.parms["old_name"]?.takeIf { it.isNotBlank() }
+            ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"missing old_name\"}")
+        val newName = session.parms["new_name"]?.takeIf { it.isNotBlank() }
+            ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"missing new_name\"}")
+        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
+        val oldDir = safeProfileDir(scriptsDir, oldName)
+        val newDir = safeProfileDir(scriptsDir, newName)
+        if (oldDir == scriptsDir || newDir == scriptsDir) return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"invalid name\"}")
+        if (!oldDir.exists() || !oldDir.isDirectory) return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"profile not found\"}")
+        // Case-insensitive collision check, but allow a pure case change (e.g. "work" -> "Work").
+        if (profileNameTaken(scriptsDir, newDir.name, except = oldDir)) return newFixedLengthResponse(Response.Status.CONFLICT, "application/json", "{\"error\":\"target exists\"}")
+        return if (oldDir.renameTo(newDir)) {
+            newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"renamed\",\"name\":${JSONObject.quote(newDir.name)}}")
+        } else {
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "{\"error\":\"rename failed\"}")
+        }
+    }
+
+    private fun handleDeleteProfile(session: IHTTPSession): Response {
+        val name = session.parms["name"]?.takeIf { it.isNotBlank() }
+            ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"missing name\"}")
+        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
+        val dir = safeProfileDir(scriptsDir, name)
+        if (dir == scriptsDir) return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"invalid name\"}")
+        if (!dir.exists() || !dir.isDirectory) return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"profile not found\"}")
+        // Non-destructive: relocate contained scripts to root (uncategorized) before removing.
+        var moved = 0
+        dir.listFiles()?.filter { it.isFile }?.forEach { if (moveFileInto(it, scriptsDir)) moved++ }
+        dir.deleteRecursively()
+        return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"deleted\",\"moved\":$moved}")
+    }
+
+    private fun handleMoveScripts(session: IHTTPSession): Response {
+        val map = HashMap<String, String>()
+        try { session.parseBody(map) } catch (e: Exception) {}
+        val body = map["postData"] ?: session.parms["postData"] ?: ""
+        val json = try { JSONObject(body) } catch (e: Exception) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"invalid json body\"}")
+        }
+        val items = json.optJSONArray("scripts")
+            ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"no scripts provided\"}")
+        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
+        val destDir = safeProfileDir(scriptsDir, json.optString("to", ""))
+        destDir.mkdirs()
+        var moved = 0
+        for (i in 0 until items.length()) {
+            val o = items.optJSONObject(i) ?: continue
+            val name = o.optString("name", "")
+            if (name.isEmpty()) continue
+            val src = safeScriptFile(scriptsDir, o.optString("profile", ""), name)
+            if (!src.exists()) continue
+            if (src.parentFile == destDir) { moved++; continue }
+            if (moveFileInto(src, destDir)) moved++
+        }
+        return newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"moved\",\"moved\":$moved}")
     }
 
     private fun handleRunScript(session: IHTTPSession): Response {
@@ -139,8 +274,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         runRateLimits[clientIp] = System.currentTimeMillis()
 
         val scriptName = session.parms["name"] ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"missing name\"}")
-        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
-        val scriptFile = getSafeFile(scriptsDir, scriptName)
+        val scriptFile = resolveScriptFile(scriptName, session.parms["profile"])
         if (!scriptFile.exists()) return newFixedLengthResponse(Response.Status.NOT_FOUND, "application/json", "{\"error\":\"script not found\"}")
 
         val intent = Intent(context, ScriptExecutionService::class.java).apply {
@@ -175,9 +309,17 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         val scriptsDir = MainActivity.getStorageDir(context, "scripts")
         val paths = ArrayList<String>()
         for (i in 0 until names.length()) {
-            val name = names.optString(i, "")
-            if (name.isEmpty()) continue
-            val file = getSafeFile(scriptsDir, name)
+            // Items may be {name, profile} objects (preferred) or bare name strings (legacy → resolve).
+            val obj = names.optJSONObject(i)
+            val file = if (obj != null) {
+                val name = obj.optString("name", "")
+                if (name.isEmpty()) continue
+                safeScriptFile(scriptsDir, obj.optString("profile", ""), name)
+            } else {
+                val name = names.optString(i, "")
+                if (name.isEmpty()) continue
+                resolveScriptFile(name, null)
+            }
             if (file.exists()) paths.add(file.absolutePath)
         }
         if (paths.isEmpty()) {
@@ -218,8 +360,8 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
 
     private fun handleDeleteScript(session: IHTTPSession): Response {
         val name = session.parms["name"] ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"missing name\"}")
-        if (name == "ui_explorer.py") return newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json", "{\"error\":\"cannot delete system scripts\"}")
-        val file = getSafeFile(MainActivity.getStorageDir(context, "scripts"), name)
+        if (sanitizeFileName(name) == "ui_explorer.py") return newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json", "{\"error\":\"cannot delete system scripts\"}")
+        val file = resolveScriptFile(name, session.parms["profile"])
         return if (file.exists() && file.delete()) {
             newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"deleted\"}")
         } else {
@@ -229,7 +371,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
 
     private fun handleResetScript(session: IHTTPSession): Response {
         val name = session.parms["name"] ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"missing name\"}")
-        val scriptFile = getSafeFile(MainActivity.getStorageDir(context, "scripts"), name)
+        val scriptFile = resolveScriptFile(name, session.parms["profile"])
         return try {
             context.assets.open("scripts/${scriptFile.name}").use { input ->
                 scriptFile.outputStream().use { output -> input.copyTo(output) }
@@ -245,10 +387,10 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         val oldName = session.parms["old_name"] ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"missing old_name\"}")
         var newName = session.parms["new_name"] ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"missing new_name\"}")
         if (!newName.endsWith(".py")) newName += ".py"
-        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
-        val oldFile = getSafeFile(scriptsDir, oldName)
-        val newFile = getSafeFile(scriptsDir, newName)
-        if (oldName == "ui_explorer.py") return newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json", "{\"error\":\"forbidden\"}")
+        if (sanitizeFileName(oldName) == "ui_explorer.py") return newFixedLengthResponse(Response.Status.FORBIDDEN, "application/json", "{\"error\":\"forbidden\"}")
+        val oldFile = resolveScriptFile(oldName, session.parms["profile"])
+        val newFile = File(oldFile.parentFile, sanitizeFileName(newName))
+        if (newFile.exists()) return newFixedLengthResponse(Response.Status.CONFLICT, "application/json", "{\"error\":\"target exists\"}")
         return if (oldFile.exists() && oldFile.renameTo(newFile)) {
             newFixedLengthResponse(Response.Status.OK, "application/json", "{\"status\":\"renamed\"}")
         } else {
@@ -427,14 +569,16 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
     }
 
     private fun handleExportScripts(session: IHTTPSession): Response {
-        val scriptsDir = MainActivity.getStorageDir(context, "scripts")
-        val scripts = scriptsDir.listFiles()?.filter { it.extension == "py" } ?: emptyList()
+        // (profile, file) pairs — profile-folder scripts are zipped under "Profile/name.py" so a
+        // backup round-trips the folder layout; uncategorized scripts stay at the archive root.
+        val scripts = allScripts()
         val includeLogs = session.parms["include_logs"] == "1"
         return try {
             val baos = java.io.ByteArrayOutputStream()
             java.util.zip.ZipOutputStream(baos).use { zos ->
-                for (file in scripts) {
-                    zos.putNextEntry(java.util.zip.ZipEntry(file.name))
+                for ((profile, file) in scripts) {
+                    val entryPath = if (profile.isEmpty()) file.name else "$profile/${file.name}"
+                    zos.putNextEntry(java.util.zip.ZipEntry(entryPath))
                     file.inputStream().use { it.copyTo(zos) }
                     zos.closeEntry()
                 }
@@ -452,7 +596,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
                     put("manifest_version", 1)
                     put("exported_at", System.currentTimeMillis())
                     put("script_count", scripts.size)
-                    put("scripts", JSONArray(scripts.map { it.name }))
+                    put("scripts", JSONArray(scripts.map { (profile, file) -> if (profile.isEmpty()) file.name else "$profile/${file.name}" }))
                     put("includes_logs", includeLogs)
                 }
                 zos.putNextEntry(java.util.zip.ZipEntry("manifest.json"))
@@ -500,22 +644,26 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
         val tempFile = java.io.File(tempPath)
 
         // Classifies one incoming script and (unless detecting) writes it per the chosen mode.
-        fun handleScript(baseName: String, incoming: ByteArray, addedNames: JSONArray, unchanged: IntArray,
+        // [profile] places it into a folder ("" = root); names are reported with the folder prefix
+        // so conflict dialogs can disambiguate same-named scripts in different profiles.
+        fun handleScript(baseName: String, profile: String, incoming: ByteArray, addedNames: JSONArray, unchanged: IntArray,
                          conflictNames: JSONArray, overwrittenNames: JSONArray, copiedNames: JSONArray) {
-            val dest = getSafeFile(scriptsDir, baseName)
+            val dest = safeScriptFile(scriptsDir, profile, baseName)
+            val label = { f: File -> if (profile.isEmpty()) f.name else "$profile/${f.name}" }
+            if (!detect) dest.parentFile?.mkdirs()
             when {
-                !dest.exists() -> { addedNames.put(dest.name); if (!detect) dest.writeBytes(incoming) }
+                !dest.exists() -> { addedNames.put(label(dest)); if (!detect) dest.writeBytes(incoming) }
                 dest.readBytes().contentEquals(incoming) -> unchanged[0]++
                 else -> {
-                    conflictNames.put(dest.name)
+                    conflictNames.put(label(dest))
                     if (!detect) {
                         if (mode == "copy") {
-                            val copy = uniqueScriptName(scriptsDir, dest.name)
+                            val copy = uniqueScriptName(dest.parentFile ?: scriptsDir, dest.name)
                             copy.writeBytes(incoming)
-                            copiedNames.put(copy.name)
+                            copiedNames.put(label(copy))
                         } else {
                             dest.writeBytes(incoming)
-                            overwrittenNames.put(dest.name)
+                            overwrittenNames.put(label(dest))
                         }
                     }
                 }
@@ -537,10 +685,14 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
                     while (entry != null) {
                         val entryName = entry.name
                         val baseName = entryName.substringAfterLast("/")
+                        // One-level folder ("Profile/name.py") restores into that profile; deeper
+                        // paths collapse to their immediate parent. "logs/" is handled separately.
+                        val segments = entryName.split("/").filter { it.isNotEmpty() }
+                        val profile = if (segments.size >= 2 && segments[segments.size - 2] != "logs") segments[segments.size - 2] else ""
                         when {
                             entry.isDirectory -> {}
                             entryName.endsWith(".py", ignoreCase = true) ->
-                                handleScript(baseName, zis.readBytes(), addedNames, unchanged,
+                                handleScript(baseName, profile, zis.readBytes(), addedNames, unchanged,
                                     conflictNames, overwrittenNames, copiedNames)
                             entryName.startsWith("logs/") && baseName.isNotEmpty() -> {
                                 if (!detect) {
@@ -559,7 +711,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
                     }
                 }
             } else if (originalName.endsWith(".py", ignoreCase = true)) {
-                handleScript(originalName, tempFile.readBytes(), addedNames, unchanged,
+                handleScript(originalName, "", tempFile.readBytes(), addedNames, unchanged,
                     conflictNames, overwrittenNames, copiedNames)
             } else {
                 return newFixedLengthResponse(Response.Status.BAD_REQUEST, "application/json", "{\"error\":\"unsupported file type\"}")

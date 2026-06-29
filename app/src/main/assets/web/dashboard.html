@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="candy">
+<html lang="en" data-theme="lollipop">
 <head>
     <meta charset="UTF-8">
     <title>Far_Auto | Console</title>
@@ -93,16 +93,42 @@
         .script-check { width: 20px; height: 20px; }
         .script-info { min-width: 0; overflow: hidden; }
         .script-name { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
-        .script-actions { display: flex; gap: 4px; flex-shrink: 0; opacity: 0; }
+        .script-actions { display: flex; gap: 4px; flex-shrink: 0; opacity: 0; transition: opacity 0.15s ease; }
         .script-item:hover .script-actions { opacity: 1; }
+        /* Touch devices have no hover — keep the row actions visible so they're reachable. */
+        @media (hover: none) { .script-actions { opacity: 1; } }
         .script-meta { display: block; font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+        /* Currently-running script: accent ring + a pulsing "running" flag. */
+        .script-item.running { box-shadow: inset 0 0 0 2px var(--accent); }
+        .run-flag { display: none; align-items: center; gap: 5px; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--success); margin-top: 3px; }
+        .script-item.running .run-flag { display: inline-flex; }
+        .run-flag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: runPulse 1.2s ease-in-out infinite; }
+        @keyframes runPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.7); } }
 
         .list-toolbar { display: flex; gap: 8px; padding: 12px 16px 4px; }
+        .profile-toolbar { display: flex; align-items: center; gap: 8px; padding: 4px 16px 8px; }
+        .profile-toolbar .btn { padding: 6px 10px; font-size: 0.78rem; }
         .search-wrap { position: relative; flex: 1; min-width: 0; }
         .search-wrap .search-ico { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 0.8rem; opacity: 0.55; pointer-events: none; }
         #script-search { width: 100%; padding: 8px 12px 8px 34px; font-size: 0.85rem; }
         #script-sort { padding: 8px 10px; font-size: 0.8rem; cursor: pointer; flex-shrink: 0; }
         .list-empty { text-align: center; color: var(--text-dim); font-size: 0.85rem; padding: 32px 16px; }
+        /* Profile tabs — horizontal, scrollable folder switcher above the script list. */
+        /* Bottom padding reserves a lane for the horizontal scrollbar so it never sits over the tab text. */
+        .profile-tabs { display: flex; gap: 6px; padding: 6px 16px 11px; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+        .profile-tabs::-webkit-scrollbar { height: 6px; }
+        .profile-tabs::-webkit-scrollbar-track { background: transparent; margin: 0 16px; }
+        .profile-tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        .profile-tab { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; background: var(--input-bg); border: 1px solid var(--border); color: var(--text-dim); border-radius: 999px; padding: 5px 12px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+        .profile-tab:hover { color: var(--text); border-color: var(--accent); }
+        .profile-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .profile-tab.pop { animation: capsulePop 0.30s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .profile-tab .pt-count { font-size: 0.68rem; opacity: 0.7; font-weight: 700; }
+        .profile-tab.active .pt-count { opacity: 0.85; }
+        .profile-tab.pt-add { font-weight: 700; padding: 5px 11px; color: var(--accent); }
+        .profile-tab.pt-add:hover { background: var(--accent-dim); }
+        .script-folder { display: inline-block; font-size: 0.68rem; color: var(--accent); background: var(--accent-dim); border-radius: 6px; padding: 1px 7px; margin-top: 3px; }
+        .editor-folder { font-size: 0.8rem; font-weight: 600; color: var(--accent); background: var(--accent-dim); border-radius: 8px; padding: 5px 10px; }
 
         .menu { position: fixed; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; display: none; z-index: 300; min-width: 170px; }
         .menu.open { display: block; }
@@ -120,6 +146,9 @@
         .conflict-list { max-height: 200px; overflow-y: auto; background: var(--input-bg); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; margin-bottom: 18px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; }
         .conflict-list div { padding: 3px 0; color: var(--text); word-break: break-all; }
         .modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+        .modal-input { width: 100%; margin-bottom: 10px; padding: 10px 12px; }
+        .modal-error { color: var(--danger); font-size: 0.8rem; margin: 0 0 12px; min-height: 1em; }
+        #app-modal-msg { white-space: pre-wrap; max-height: 50vh; overflow-y: auto; }
 
         #queue-panel { border-top: 1px solid var(--border); padding: 12px 16px; max-height: 45%; overflow-y: auto; }
         #queue-panel h4 { margin: 0 0 8px; font-size: 0.75rem; text-transform: uppercase; color: var(--text-dim); }
@@ -138,7 +167,9 @@
 
         .tabs { display: flex; gap: 8px; padding: 12px 24px; background: var(--bg); border-bottom: 1px solid var(--border); }
         .tab-btn { background: transparent; color: var(--text-dim); border: none; font-size: 0.875rem; font-weight: 600; cursor: pointer; padding: 10px 20px; border-radius: 10px; }
+        .tab-btn:hover { color: var(--accent); }
         .tab-btn.active { background: var(--panel); color: var(--accent); box-shadow: var(--shadow); }
+        @keyframes capsulePop { 0% { transform: scale(0.88); } 60% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
         #log-terminal { background: var(--terminal-bg); color: var(--terminal-text); padding: 24px; flex-grow: 1; overflow-y: auto; font-family: 'JetBrains Mono', monospace; white-space: pre-wrap; font-size: 0.875rem; line-height: 1.6; }
         .terminal-controls { padding: 20px 24px; background: var(--panel); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 16px; }
@@ -160,13 +191,13 @@
         .copy-btn { position: absolute; top: 10px; right: 10px; background: var(--accent); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; }
 
         /* =========================================================================
-           CANDY THEME  (data-theme="candy")
+           CANDY THEME  (data-theme="lollipop")
            Soft pastel candymorphism: puffy raised surfaces (dual outer shadow +
            inner highlight), recessed inputs/terminal (inset shadows). Pure CSS —
            static shadows/gradients only, so no real-time blur and no GPU cost on
-           scroll. Fully scoped under [data-theme="candy"]; dark/light are untouched.
+           scroll. Fully scoped under [data-theme="lollipop"]; dark/light are untouched.
            ========================================================================= */
-        html[data-theme="candy"] {
+        html[data-theme="lollipop"] {
             --bg: #ece5ea;
             --panel: #f2ecf4;
             --header: #f2ecf4;
@@ -200,7 +231,7 @@
         }
 
         /* Soft "cloth" backdrop faked with layered radial gradients (no image asset) */
-        html[data-theme="candy"] body {
+        html[data-theme="lollipop"] body {
             background:
                 radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.55), transparent 42%),
                 radial-gradient(circle at 85% 0%, rgba(214, 196, 222, 0.45), transparent 48%),
@@ -209,41 +240,41 @@
         }
 
         /* Raised surfaces */
-        html[data-theme="candy"] .header {
+        html[data-theme="lollipop"] .header {
             background: var(--candy-surface);
             border-bottom: none;
             box-shadow: 0 8px 18px rgba(150, 130, 165, 0.22);
         }
-        html[data-theme="candy"] .panel,
-        html[data-theme="candy"] .modal-card,
-        html[data-theme="candy"] .menu {
+        html[data-theme="lollipop"] .panel,
+        html[data-theme="lollipop"] .modal-card,
+        html[data-theme="lollipop"] .menu {
             background: var(--candy-surface);
             border: none;
             border-radius: 26px;
             box-shadow: var(--candy-raised);
         }
-        html[data-theme="candy"] .panel-header { border-bottom: 1px solid var(--border); }
+        html[data-theme="lollipop"] .panel-header { border-bottom: 1px solid var(--border); }
 
         /* Pills & toggle as little candy nuggets */
-        html[data-theme="candy"] .status-pill,
-        html[data-theme="candy"] .rec-pill,
-        html[data-theme="candy"] .seq-pill {
+        html[data-theme="lollipop"] .status-pill,
+        html[data-theme="lollipop"] .rec-pill,
+        html[data-theme="lollipop"] .seq-pill {
             border: none;
             box-shadow: var(--candy-raised-sm);
             background: var(--candy-surface);
             color: var(--accent);
         }
-        html[data-theme="candy"] .theme-toggle {
+        html[data-theme="lollipop"] .theme-toggle {
             border: none;
             border-radius: 50%;
             background: var(--candy-surface);
             box-shadow: var(--candy-raised-sm);
         }
-        html[data-theme="candy"] .theme-toggle:active { box-shadow: var(--candy-inset); }
+        html[data-theme="lollipop"] .theme-toggle:active { box-shadow: var(--candy-inset); }
 
         /* Buttons — puffy, press inward on tap */
-        html[data-theme="candy"] .btn { border-radius: 16px; border: none; }
-        html[data-theme="candy"] .btn-primary {
+        html[data-theme="lollipop"] .btn { border-radius: 16px; border: none; }
+        html[data-theme="lollipop"] .btn-primary {
             background: linear-gradient(145deg, #9a7fc6, #7a5fa8);
             color: #fff;
             box-shadow:
@@ -252,15 +283,15 @@
                 inset 2px 2px 4px rgba(255, 255, 255, 0.35),
                 inset -3px -3px 6px rgba(75, 55, 105, 0.40);
         }
-        html[data-theme="candy"] .btn-ghost,
-        html[data-theme="candy"] .btn-danger {
+        html[data-theme="lollipop"] .btn-ghost,
+        html[data-theme="lollipop"] .btn-danger {
             background: var(--candy-surface);
             border: none;
             box-shadow: var(--candy-raised-sm);
         }
-        html[data-theme="candy"] .btn-danger { color: var(--danger); }
-        html[data-theme="candy"] .btn:hover { filter: brightness(1.03); transform: translateY(-1px); }
-        html[data-theme="candy"] .btn:active {
+        html[data-theme="lollipop"] .btn-danger { color: var(--danger); }
+        html[data-theme="lollipop"] .btn:hover { filter: brightness(1.03); transform: translateY(-1px); }
+        html[data-theme="lollipop"] .btn:active {
             transform: translateY(1px);
             box-shadow:
                 inset 4px 4px 9px rgba(120, 95, 160, 0.35),
@@ -268,55 +299,78 @@
         }
 
         /* Recessed inputs */
-        html[data-theme="candy"] .input-dark,
-        html[data-theme="candy"] .conflict-list {
+        html[data-theme="lollipop"] .input-dark,
+        html[data-theme="lollipop"] .conflict-list {
             background: var(--input-bg);
             border: none;
             border-radius: 14px;
             box-shadow: var(--candy-inset);
         }
-        html[data-theme="candy"] .input-dark:focus {
+        html[data-theme="lollipop"] .input-dark:focus {
             box-shadow: var(--candy-inset), 0 0 0 2px var(--accent-dim);
         }
-        html[data-theme="candy"] .cbox {
+        html[data-theme="lollipop"] .cbox {
             border: none;
             background: var(--input-bg);
             box-shadow: var(--candy-inset);
         }
-        html[data-theme="candy"] .cbox:checked {
+        html[data-theme="lollipop"] .cbox:checked {
             background: linear-gradient(145deg, #9a7fc6, #7a5fa8);
             box-shadow: var(--candy-raised-sm);
         }
 
         /* Script rows as raised candy bars */
-        html[data-theme="candy"] .script-item {
+        html[data-theme="lollipop"] .script-item {
             background: var(--candy-surface);
             box-shadow: var(--candy-raised-sm);
             margin-bottom: 12px;
             border-radius: 18px;
         }
-        html[data-theme="candy"] .script-item:hover { filter: brightness(1.02); }
-        html[data-theme="candy"] .queue-row { background: var(--candy-surface); box-shadow: var(--candy-raised-sm); border-radius: 14px; }
+        html[data-theme="lollipop"] .script-item:hover { filter: brightness(1.02); }
+        html[data-theme="lollipop"] .queue-row { background: var(--candy-surface); box-shadow: var(--candy-raised-sm); border-radius: 14px; }
+
+        /* Profile folder tabs as raised candy nuggets; the active one is a glossy accent drop. */
+        html[data-theme="lollipop"] .profile-tab {
+            border: none;
+            background: var(--candy-surface);
+            box-shadow: var(--candy-raised-sm);
+            color: var(--accent);
+        }
+        html[data-theme="lollipop"] .profile-tab:hover { filter: brightness(1.03); transform: translateY(-1px); }
+        html[data-theme="lollipop"] .profile-tab:active { box-shadow: var(--candy-inset); transform: translateY(0); }
+        html[data-theme="lollipop"] .profile-tab.active {
+            background: linear-gradient(145deg, #9a7fc6, #7a5fa8);
+            color: #fff;
+            box-shadow:
+                4px 4px 10px rgba(120, 95, 160, 0.38),
+                -3px -3px 8px rgba(255, 255, 255, 0.50),
+                inset 2px 2px 4px rgba(255, 255, 255, 0.30),
+                inset -3px -3px 6px rgba(75, 55, 105, 0.38);
+        }
+        html[data-theme="lollipop"] .profile-tab.active .pt-count { color: #fff; }
+        html[data-theme="lollipop"] .profile-tab.pt-add { color: var(--accent); font-size: 1rem; }
+        html[data-theme="lollipop"] .script-folder { box-shadow: var(--candy-raised-sm); background: var(--candy-surface); }
+        html[data-theme="lollipop"] .editor-folder { box-shadow: var(--candy-raised-sm); background: var(--candy-surface); border: none; }
 
         /* Tabs: active tab pops out */
-        html[data-theme="candy"] .tabs { background: transparent; border-bottom: none; }
-        html[data-theme="candy"] .tab-btn.active { background: var(--candy-surface); box-shadow: var(--candy-raised-sm); }
+        html[data-theme="lollipop"] .tabs { background: transparent; border-bottom: none; }
+        html[data-theme="lollipop"] .tab-btn.active { background: var(--candy-surface); box-shadow: var(--candy-raised-sm); }
 
         /* Terminal & code as a recessed dark screen embedded in the candy */
-        html[data-theme="candy"] #log-terminal,
-        html[data-theme="candy"] .code-box {
+        html[data-theme="lollipop"] #log-terminal,
+        html[data-theme="lollipop"] .code-box {
             border-radius: 18px;
             box-shadow: inset 6px 6px 14px rgba(0, 0, 0, 0.40), inset -3px -3px 10px rgba(255, 255, 255, 0.06);
         }
-        html[data-theme="candy"] #log-terminal { margin: 14px; }
-        html[data-theme="candy"] .terminal-controls,
-        html[data-theme="candy"] .editor-footer { background: transparent; border-top: 1px solid var(--border); }
-        html[data-theme="candy"] .gutter::before { background: rgba(150, 130, 165, 0.25); border-radius: 8px; }
+        html[data-theme="lollipop"] #log-terminal { margin: 14px; }
+        html[data-theme="lollipop"] .terminal-controls,
+        html[data-theme="lollipop"] .editor-footer { background: transparent; border-top: 1px solid var(--border); }
+        html[data-theme="lollipop"] .gutter::before { background: rgba(150, 130, 165, 0.25); border-radius: 8px; }
 
         /* ---------- CANDY DETAILING ---------- */
 
         /* Faint cloth grain over the backdrop (inline SVG noise — no asset, CSP-safe). */
-        html[data-theme="candy"] body {
+        html[data-theme="lollipop"] body {
             background-color: var(--bg);
             background-image:
                 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E"),
@@ -328,26 +382,26 @@
         }
 
         /* Buttons & checkboxes physically squish inward on press. */
-        html[data-theme="candy"] .btn { transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease; }
-        html[data-theme="candy"] .btn:active {
+        html[data-theme="lollipop"] .btn { transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease; }
+        html[data-theme="lollipop"] .btn:active {
             transform: translateY(1px) scale(0.985);
             box-shadow:
                 inset 4px 4px 9px rgba(120, 95, 160, 0.30),
                 inset -3px -3px 7px rgba(255, 255, 255, 0.55);
         }
-        html[data-theme="candy"] .btn-primary:active {
+        html[data-theme="lollipop"] .btn-primary:active {
             box-shadow:
                 inset 4px 4px 9px rgba(70, 50, 100, 0.45),
                 inset -3px -3px 7px rgba(255, 255, 255, 0.25);
         }
-        html[data-theme="candy"] .cbox:active { box-shadow: var(--candy-inset); }
+        html[data-theme="lollipop"] .cbox:active { box-shadow: var(--candy-inset); }
 
         /* Script rows lift on hover for a tactile, pick-up-able feel. */
-        html[data-theme="candy"] .script-item { transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; }
-        html[data-theme="candy"] .script-item:hover { transform: translateY(-2px); box-shadow: var(--candy-raised); filter: none; }
+        html[data-theme="lollipop"] .script-item { transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease; }
+        html[data-theme="lollipop"] .script-item:hover { transform: translateY(-2px); box-shadow: var(--candy-raised); filter: none; }
 
         /* Tab bar as a recessed candy segmented control with a raised active pill. */
-        html[data-theme="candy"] .tabs {
+        html[data-theme="lollipop"] .tabs {
             background: var(--input-bg);
             box-shadow: var(--candy-inset);
             border-radius: 16px;
@@ -356,26 +410,26 @@
             gap: 6px;
             align-self: flex-start;
         }
-        html[data-theme="candy"] .tab-btn { border-radius: 11px; }
+        html[data-theme="lollipop"] .tab-btn { border-radius: 11px; }
 
         /* Candy scrollbars (WebKit). Light track-less thumbs; darker inside the terminal. */
-        html[data-theme="candy"] ::-webkit-scrollbar { width: 12px; height: 12px; }
-        html[data-theme="candy"] ::-webkit-scrollbar-track { background: transparent; }
-        html[data-theme="candy"] ::-webkit-scrollbar-thumb {
+        html[data-theme="lollipop"] ::-webkit-scrollbar { width: 12px; height: 12px; }
+        html[data-theme="lollipop"] ::-webkit-scrollbar-track { background: transparent; }
+        html[data-theme="lollipop"] ::-webkit-scrollbar-thumb {
             border: 3px solid transparent;
             background-clip: padding-box;
             border-radius: 10px;
             background-color: #cabfd6;
         }
-        html[data-theme="candy"] #log-terminal::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.18); }
+        html[data-theme="lollipop"] #log-terminal::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.18); }
 
         /* The AI-setup overlay is the deliberate candy+glass accent: frosted panel. */
-        html[data-theme="candy"] #setup-overlay {
+        html[data-theme="lollipop"] #setup-overlay {
             background: rgba(243, 237, 245, 0.62);
             backdrop-filter: blur(16px) saturate(1.15);
             -webkit-backdrop-filter: blur(16px) saturate(1.15);
         }
-        html[data-theme="candy"] .setup-card {
+        html[data-theme="lollipop"] .setup-card {
             background: var(--candy-surface);
             border: 1px solid rgba(255, 255, 255, 0.6);
             border-radius: 22px;
@@ -384,7 +438,7 @@
         }
 
         /* Tinted text selection. */
-        html[data-theme="candy"] ::selection { background: rgba(139, 111, 184, 0.28); }
+        html[data-theme="lollipop"] ::selection { background: rgba(139, 111, 184, 0.28); }
 
         /* ---------- CANDY ANIMATIONS ---------- */
         @keyframes candyRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
@@ -392,38 +446,38 @@
         @keyframes candyPop  { from { opacity: 0; transform: scale(0.94) translateY(6px); } to { opacity: 1; transform: none; } }
 
         /* Panels & header glide in on load (right panel slightly staggered). */
-        html[data-theme="candy"] .header      { animation: candyFade 0.6s ease both; }
-        html[data-theme="candy"] .left-panel  { animation: candyRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
-        html[data-theme="candy"] .right-panel { animation: candyRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both; }
+        html[data-theme="lollipop"] .header      { animation: candyFade 0.6s ease both; }
+        html[data-theme="lollipop"] .left-panel  { animation: candyRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        html[data-theme="lollipop"] .right-panel { animation: candyRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both; }
 
         /* Script rows fade in as the list renders. */
-        html[data-theme="candy"] .script-item { animation: candyFade 0.25s ease both; }
+        html[data-theme="lollipop"] .script-item { animation: candyFade 0.25s ease both; }
 
         /* Menus, modals and the setup overlay pop into place. */
-        html[data-theme="candy"] .menu.open { animation: candyPop 0.18s ease both; }
-        html[data-theme="candy"] .modal-overlay.open .modal-card { animation: candyPop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
-        html[data-theme="candy"] #setup-overlay { animation: candyFade 0.3s ease both; }
-        html[data-theme="candy"] #setup-overlay .setup-card { animation: candyPop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        html[data-theme="lollipop"] .menu.open { animation: candyPop 0.18s ease both; }
+        html[data-theme="lollipop"] .modal-overlay.open .modal-card { animation: candyPop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        html[data-theme="lollipop"] #setup-overlay { animation: candyFade 0.3s ease both; }
+        html[data-theme="lollipop"] #setup-overlay .setup-card { animation: candyPop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
         /* Springy buttons (bounce on hover-in, squish on press). */
-        html[data-theme="candy"] .btn {
+        html[data-theme="lollipop"] .btn {
             transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, filter 0.15s ease;
         }
 
         /* Theme toggle gives a playful tilt + pop. */
-        html[data-theme="candy"] .theme-toggle {
+        html[data-theme="lollipop"] .theme-toggle {
             transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease;
         }
-        html[data-theme="candy"] .theme-toggle:hover  { transform: rotate(-12deg) scale(1.06); }
-        html[data-theme="candy"] .theme-toggle:active { transform: scale(0.9); }
+        html[data-theme="lollipop"] .theme-toggle:hover  { transform: rotate(-12deg) scale(1.06); }
+        html[data-theme="lollipop"] .theme-toggle:active { transform: scale(0.9); }
 
         /* Live REC / sequence pills get a soft breathing glow. */
         @keyframes candyBreath {
             0%, 100% { box-shadow: var(--candy-raised-sm); }
             50%      { box-shadow: var(--candy-raised-sm), 0 0 0 4px var(--accent-dim); }
         }
-        html[data-theme="candy"] .rec-pill,
-        html[data-theme="candy"] .seq-pill { animation: candyBreath 2s ease-in-out infinite; }
+        html[data-theme="lollipop"] .rec-pill,
+        html[data-theme="lollipop"] .seq-pill { animation: candyBreath 2s ease-in-out infinite; }
 
         /* Refresh button spins while the script list is loading (all themes). */
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -447,7 +501,7 @@
             font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5;
             white-space: pre; overflow: auto; outline: none;
         }
-        html[data-theme="candy"] .banner-input { border: none; box-shadow: var(--candy-inset); }
+        html[data-theme="lollipop"] .banner-input { border: none; box-shadow: var(--candy-inset); }
         .term-status { display: block; margin-top: 6px; opacity: 0.85; }
         .term-status-ok { color: var(--success); }
 
@@ -473,11 +527,11 @@
         .toast.show svg.toast-ico path { stroke-dasharray: 30; stroke-dashoffset: 30; animation: checkDraw 0.4s ease 0.12s forwards; }
         .toast.toast-err .toast-ico { color: var(--danger); }
         @keyframes checkDraw { to { stroke-dashoffset: 0; } }
-        html[data-theme="candy"] .toast { background: var(--candy-surface); border: none; border-radius: 16px; box-shadow: var(--candy-raised); }
+        html[data-theme="lollipop"] .toast { background: var(--candy-surface); border: none; border-radius: 16px; box-shadow: var(--candy-raised); }
 
         /* One-time light sheen sweeping across each panel on first load (candy only). */
-        html[data-theme="candy"] .panel { position: relative; }
-        html[data-theme="candy"] .panel::before {
+        html[data-theme="lollipop"] .panel { position: relative; }
+        html[data-theme="lollipop"] .panel::before {
             content: ""; position: absolute; inset: 0; border-radius: inherit;
             z-index: 6; pointer-events: none;
             background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.40) 50%, transparent 65%);
@@ -488,7 +542,7 @@
 
         /* Blinking terminal prompt caret before the command input (candy only). */
         .term-prompt { display: none; }
-        html[data-theme="candy"] .term-prompt {
+        html[data-theme="lollipop"] .term-prompt {
             display: inline-block;
             color: var(--accent);
             font-family: 'JetBrains Mono', monospace;
@@ -550,9 +604,9 @@
 
         /* Respect users who prefer less motion. */
         @media (prefers-reduced-motion: reduce) {
-            html[data-theme="candy"] *,
-            html[data-theme="candy"] *::before,
-            html[data-theme="candy"] *::after { animation: none !important; transition: none !important; }
+            html[data-theme="lollipop"] *,
+            html[data-theme="lollipop"] *::before,
+            html[data-theme="lollipop"] *::after { animation: none !important; transition: none !important; }
             .btn.spinning,
             .term-waiting .dots::after,
             .toast.show svg.toast-ico path,
@@ -560,13 +614,15 @@
             .btn-danger.running,
             .btn-loading::after,
             .tab-anim,
+            .tab-btn.active,
+            .profile-tab.pop,
             .cbox:checked::after { animation: none !important; }
             .toast { transition: opacity 0.2s ease !important; }
             html.theme-anim, html.theme-anim * { transition: none !important; }
         }
     </style>
 </head>
-<body data-theme="candy">
+<body data-theme="lollipop">
     <div class="header">
         <div class="logo-group">
             <h1>Far_Auto</h1>
@@ -576,7 +632,7 @@
         </div>
         <div class="auth-bar">
             <div class="theme-toggle" onclick="toggleTheme()" id="theme-icon">🍭</div>
-            <input type="password" id="token-input" class="input-dark" placeholder="Auth Token">
+            <input type="password" id="token-input" class="input-dark" placeholder="Auth Token" onkeydown="if (event.key === 'Enter') { event.preventDefault(); saveToken(); }">
             <button id="btn-connect" class="btn btn-primary" onclick="saveToken()">Connect</button>
         </div>
     </div>
@@ -593,6 +649,8 @@
                     <option value="modified-asc">Oldest</option>
                 </select>
             </div>
+            <div id="profile-tabs" class="profile-tabs"></div>
+            <div id="profile-toolbar" class="profile-toolbar" style="display: none;"></div>
             <div id="script-list"></div>
             <div id="queue-panel" style="display: none;">
                 <h4>Run Queue (<span id="queue-count">0</span>)</h4>
@@ -664,7 +722,7 @@
             <div id="editor-container">
                 <div id="ace-editor"></div>
                 <div class="editor-footer">
-                    <div style="display: flex; align-items: center; gap: 12px;"><span style="font-size: 0.875rem; font-weight: 600; color: var(--text-dim);">File:</span><span id="dirty-dot" class="dirty-dot" title="Unsaved changes"></span><input type="text" id="editor-filename" class="input-dark" style="width: 180px; padding: 6px 12px;" placeholder="name.py"></div>
+                    <div style="display: flex; align-items: center; gap: 12px;"><span style="font-size: 0.875rem; font-weight: 600; color: var(--text-dim);">File:</span><span id="dirty-dot" class="dirty-dot" title="Unsaved changes"></span><input type="text" id="editor-filename" class="input-dark" style="width: 180px; padding: 6px 12px;" placeholder="name.py"><span id="editor-folder" class="editor-folder" title="Folder this script lives in — change it with the Move action in the list">📁 Uncategorized</span></div>
                     <div style="display: flex; gap: 12px;"><button class="btn btn-ghost" onclick="saveScript()">Save</button><button class="btn btn-primary" onclick="saveAndRun()">Save & Run</button></div>
                 </div>
             </div>
@@ -683,6 +741,18 @@
                 <button class="btn btn-ghost" data-choice="cancel">Cancel</button>
                 <button class="btn btn-ghost" data-choice="copy">Keep both</button>
                 <button class="btn btn-primary" data-choice="overwrite">Overwrite</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal-overlay" id="app-modal" onclick="if(event.target===this) appModalCancel()">
+        <div class="modal-card">
+            <h3 id="app-modal-title"></h3>
+            <p id="app-modal-msg"></p>
+            <input type="text" id="app-modal-input" class="input-dark modal-input" style="display:none;">
+            <div id="app-modal-error" class="modal-error" style="display:none;"></div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" id="app-modal-cancel" onclick="appModalCancel()">Cancel</button>
+                <button class="btn btn-primary" id="app-modal-ok" onclick="appModalConfirm()">OK</button>
             </div>
         </div>
     </div>
@@ -781,21 +851,71 @@
         }
         document.getElementById('token-input').value = currentToken;
         let editor, lastScriptState = false, stopPollingTimer = null, editorDirty = false;
+        let runningScript = null; // basename of the script currently executing (from the status poll)
 
         function setDirty(d) {
             editorDirty = d;
             const dot = document.getElementById('dirty-dot');
             if (dot) dot.classList.toggle('show', d);
         }
-        function confirmDiscard() {
-            return !editorDirty || confirm('You have unsaved changes in the editor. Discard them?');
+        async function confirmDiscard() {
+            return !editorDirty || await confirmModal('Discard changes?', 'You have unsaved changes in the editor. Discard them?', { confirmText: 'Discard', danger: true });
         }
         // Guards a browser refresh / tab close (the only "close" paths in this single-page UI)
         window.addEventListener('beforeunload', (e) => { if (editorDirty) { e.preventDefault(); e.returnValue = ''; } });
 
+        // ---- Themed modal (replaces native alert/confirm/prompt so dialogs match the theme) ----
+        let appModalState = null;
+        function showModal(opts) {
+            return new Promise(resolve => {
+                document.getElementById('app-modal-title').textContent = opts.title || '';
+                const msg = document.getElementById('app-modal-msg');
+                msg.textContent = opts.message || '';
+                msg.style.display = opts.message ? 'block' : 'none';
+                const input = document.getElementById('app-modal-input');
+                input.style.display = opts.input ? 'block' : 'none';
+                input.value = opts.value || '';
+                input.placeholder = opts.placeholder || '';
+                const err = document.getElementById('app-modal-error');
+                err.style.display = 'none'; err.textContent = '';
+                const ok = document.getElementById('app-modal-ok');
+                ok.textContent = opts.confirmText || 'OK';
+                ok.className = 'btn ' + (opts.danger ? 'btn-danger' : 'btn-primary');
+                const cancelBtn = document.getElementById('app-modal-cancel');
+                cancelBtn.textContent = opts.cancelText || 'Cancel';
+                cancelBtn.style.display = opts.hideCancel ? 'none' : '';
+                appModalState = { resolve, validate: opts.validate, isInput: !!opts.input };
+                document.getElementById('app-modal').classList.add('open');
+                setTimeout(() => { if (opts.input) { input.focus(); input.select(); } else ok.focus(); }, 40);
+            });
+        }
+        function appModalClose() { document.getElementById('app-modal').classList.remove('open'); appModalState = null; }
+        function appModalCancel() { if (!appModalState) return; const r = appModalState.resolve; appModalClose(); r(null); }
+        function appModalConfirm() {
+            if (!appModalState) return;
+            const st = appModalState;
+            const val = st.isInput ? document.getElementById('app-modal-input').value.trim() : true;
+            if (st.validate) {
+                const e = st.validate(val);
+                if (e) { const el = document.getElementById('app-modal-error'); el.textContent = e; el.style.display = 'block'; return; }
+            }
+            const r = st.resolve; appModalClose(); r(st.isInput ? val : true);
+        }
+        document.getElementById('app-modal-input').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); appModalConfirm(); } });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('app-modal').classList.contains('open')) appModalCancel(); });
+
+        // confirmModal -> Promise<bool>; promptModal -> Promise<string|null> (null = cancelled).
+        function confirmModal(title, message, { confirmText = 'OK', danger = false } = {}) {
+            return showModal({ title, message, confirmText, danger }).then(r => r === true);
+        }
+        function promptModal(title, { message = '', value = '', placeholder = '', confirmText = 'OK', validate } = {}) {
+            return showModal({ title, message, input: true, value, placeholder, confirmText, validate });
+        }
+        function infoModal(title, message) { return showModal({ title, message, confirmText: 'OK', hideCancel: true }); }
+
         // Cycle order for the toggle button; icon shows the *current* theme.
-        const THEME_CYCLE = ['dark', 'light', 'candy'];
-        const THEME_ICON = { dark: '🌙', light: '☀️', candy: '🍭' };
+        const THEME_CYCLE = ['dark', 'light', 'lollipop'];
+        const THEME_ICON = { dark: '🌙', light: '☀️', lollipop: '🍭' };
 
         let themeAnimTimer = null;
         function applyTheme(theme) {
@@ -822,7 +942,9 @@
         }
 
         window.onload = () => {
-            const savedTheme = localStorage.getItem('theme') || 'candy'; // candy is the default theme
+            // Migrate the old internal name; lollipop is the default theme.
+            let savedTheme = localStorage.getItem('theme') || 'lollipop';
+            if (savedTheme === 'candy') savedTheme = 'lollipop';
             try {
                 editor = ace.edit("ace-editor");
                 editor.session.setMode("ace/mode/python");
@@ -883,25 +1005,115 @@
         }
 
         let scriptsMeta = [];
+        let profilesMeta = [];        // [{name, script_count}] — profile folders under scripts/
+        let activeProfile = '__all__'; // active tab: '__all__' = every script, '' = Uncategorized, else folder name
+        let editingProfile = '';       // folder the script open in the editor belongs to / will save into
+
+        // Stable identity for a script: profile folder + filename ("" profile = uncategorized root).
+        function skey(s) { return (s.profile || '') + '/' + s.name; }
 
         async function loadScripts() {
             const rb = document.getElementById('btnRefreshList');
             if (rb) rb.classList.add('spinning');
             try {
-                const res = await api('/scripts');
-                if (!(res && res.ok)) return;
-                const data = await res.json();
-                // Accept both the legacy string[] shape and the richer {name,modified,size}[] shape
-                scriptsMeta = data.map(x => typeof x === 'string' ? { name: x, modified: 0, size: 0 } : x);
+                const [sRes, pRes] = await Promise.all([api('/scripts'), api('/profiles')]);
+                if (!(sRes && sRes.ok)) return;
+                const data = await sRes.json();
+                // Accept both the legacy string[] shape and the richer {name,profile,modified,size}[] shape
+                scriptsMeta = data.map(x => typeof x === 'string'
+                    ? { name: x, profile: '', modified: 0, size: 0 }
+                    : { profile: '', ...x });
+                profilesMeta = (pRes && pRes.ok) ? await pRes.json().catch(() => []) : [];
                 availableScripts = scriptsMeta.map(s => s.name);
-                // Drop any queued scripts that no longer exist
-                queue = queue.filter(n => availableScripts.includes(n));
+                // Drop any queued scripts that no longer exist (matched by profile + name)
+                const live = new Set(scriptsMeta.map(skey));
+                queue = queue.filter(q => live.has(skey(q)));
+                renderProfileTabs();
                 renderScriptList();
                 renderQueue();
                 if (serverBanner === undefined) loadBanner(); // fetch the device banner once
             } finally {
                 if (rb) rb.classList.remove('spinning');
             }
+        }
+
+        function profileExists(name) { return profilesMeta.some(p => p.name === name); }
+
+        // Render the folder tab bar: All · Uncategorized · <each profile> · (+ new folder).
+        function renderProfileTabs() {
+            const tabs = document.getElementById('profile-tabs');
+            if (!tabs) return;
+            // If the active folder was deleted/renamed out from under us, fall back to All.
+            if (activeProfile !== '__all__' && activeProfile !== '' && !profileExists(activeProfile)) activeProfile = '__all__';
+            tabs.innerHTML = '';
+            const mkTab = (val, label, count) => {
+                const t = document.createElement('button');
+                t.className = 'profile-tab' + (activeProfile === val ? ' active' : '');
+                t.title = label;
+                const txt = document.createElement('span');
+                txt.textContent = label;
+                t.appendChild(txt);
+                if (count !== null) {
+                    const c = document.createElement('span');
+                    c.className = 'pt-count';
+                    c.textContent = count;
+                    t.appendChild(c);
+                }
+                t.addEventListener('click', () => {
+                    if (activeProfile === val) return;
+                    activeProfile = val;
+                    // Toggle active state in place so only the clicked tab pops (a full re-render
+                    // would replay the pop on every background refresh).
+                    tabs.querySelectorAll('.profile-tab').forEach(el => el.classList.remove('active', 'pop'));
+                    t.classList.add('active', 'pop');
+                    renderProfileToolbar();
+                    renderScriptList();
+                });
+                return t;
+            };
+            const uncat = scriptsMeta.filter(s => !(s.profile)).length;
+            tabs.appendChild(mkTab('__all__', 'All', scriptsMeta.length));
+            tabs.appendChild(mkTab('', 'Uncategorized', uncat));
+            profilesMeta.forEach(p => tabs.appendChild(mkTab(p.name, p.name, p.script_count)));
+            const add = document.createElement('button');
+            add.className = 'profile-tab pt-add';
+            add.textContent = '+';
+            add.title = 'New profile folder';
+            add.addEventListener('click', createProfile);
+            tabs.appendChild(add);
+            renderProfileToolbar();
+        }
+
+        // Contextual actions under the tabs: rename/delete the active folder, and "Move N here"
+        // for relocating the currently-selected scripts into the active folder.
+        function renderProfileToolbar() {
+            const bar = document.getElementById('profile-toolbar');
+            if (!bar) return;
+            bar.innerHTML = '';
+            const isRealProfile = activeProfile !== '__all__' && activeProfile !== '' && profileExists(activeProfile);
+            if (isRealProfile) {
+                const ren = document.createElement('button');
+                ren.className = 'btn btn-ghost'; ren.textContent = '✎ Rename'; ren.title = 'Rename this folder';
+                ren.addEventListener('click', () => renameProfile(activeProfile));
+                const del = document.createElement('button');
+                del.className = 'btn btn-ghost'; del.textContent = '🗑 Delete'; del.title = 'Delete this folder (scripts move to Uncategorized)';
+                del.addEventListener('click', () => deleteProfile(activeProfile));
+                bar.appendChild(ren);
+                bar.appendChild(del);
+            }
+            // "Move here" targets the active folder; only meaningful when it's a real destination.
+            if (activeProfile !== '__all__') {
+                const movable = queue.filter(s => s.name !== 'ui_explorer.py' && (s.profile || '') !== activeProfile);
+                if (movable.length) {
+                    const mv = document.createElement('button');
+                    mv.className = 'btn btn-primary'; mv.style.marginLeft = 'auto';
+                    mv.textContent = 'Move ' + movable.length + ' here';
+                    mv.title = 'Move selected scripts into ' + (activeProfile || 'Uncategorized');
+                    mv.addEventListener('click', () => moveScripts(movable, activeProfile));
+                    bar.appendChild(mv);
+                }
+            }
+            bar.style.display = bar.children.length ? 'flex' : 'none';
         }
 
         function formatWhen(ts) {
@@ -919,82 +1131,108 @@
         function renderScriptList() {
             const term = (document.getElementById('script-search')?.value || '').trim().toLowerCase();
             const sort = document.getElementById('script-sort')?.value || 'name-asc';
-            const items = scriptsMeta.filter(s => s.name.toLowerCase().includes(term)).sort((a, b) => {
+            const sorter = (a, b) => {
                 switch (sort) {
                     case 'name-desc': return b.name.toLowerCase().localeCompare(a.name.toLowerCase());
                     case 'modified-desc': return (b.modified || 0) - (a.modified || 0);
                     case 'modified-asc': return (a.modified || 0) - (b.modified || 0);
                     default: return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
                 }
-            });
+            };
+            const inAll = activeProfile === '__all__';
+            let items = scriptsMeta.filter(s => s.name.toLowerCase().includes(term));
+            if (!inAll) items = items.filter(s => (s.profile || '') === activeProfile);
+            items = items.sort(sorter);
+
             const list = document.getElementById('script-list');
             list.innerHTML = '';
             if (items.length === 0) {
                 const empty = document.createElement('div');
                 empty.className = 'list-empty';
-                empty.textContent = term ? 'No scripts match your search' : 'No scripts yet';
+                empty.textContent = term ? 'No scripts match your search' : (inAll ? 'No scripts yet' : 'This folder is empty');
                 list.appendChild(empty);
                 return;
             }
-            const BASE = 'padding: 6px 10px; font-size: 0.7rem;';
-            items.forEach(meta => {
-                const s = meta.name;
-                const isSystem = s === 'ui_explorer.py';
-                const item = document.createElement('div');
-                item.className = 'script-item';
+            // Show the folder badge only in the "All" view, where scripts from every folder mingle.
+            items.forEach(meta => list.appendChild(renderScriptItem(meta, inAll)));
+        }
 
-                const left = document.createElement('div');
-                left.className = 'script-left';
-
-                const check = document.createElement('input');
-                check.type = 'checkbox';
-                check.className = 'cbox script-check';
-                check.checked = queue.includes(s);
-                check.dataset.name = s;
-                check.disabled = isSystem; // system utility — not addable to run queue or bulk delete
-                check.title = isSystem ? 'System script — cannot be queued or deleted' : 'Select — for run queue or bulk delete';
-                check.addEventListener('change', () => toggleQueue(s, check.checked));
-
-                const info = document.createElement('div');
-                info.className = 'script-info';
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'script-name';
-                nameSpan.textContent = s;
-                nameSpan.title = s;
-                info.appendChild(nameSpan);
-                const when = formatWhen(meta.modified);
-                if (when) {
-                    const metaSpan = document.createElement('span');
-                    metaSpan.className = 'script-meta';
-                    metaSpan.textContent = when;
-                    info.appendChild(metaSpan);
-                }
-                left.appendChild(check);
-                left.appendChild(info);
-
-                const actions = document.createElement('div');
-                actions.className = 'script-actions';
-
-                const mkBtn = (text, cls, style, handler) => {
-                    const b = document.createElement('button');
-                    b.className = `btn ${cls}`;
-                    b.style.cssText = style;
-                    b.textContent = text;
-                    b.addEventListener('click', handler);
-                    return b;
-                };
-
-                actions.appendChild(mkBtn('Edit', 'btn-ghost', BASE, () => openEditor(s)));
-                if (!isSystem) actions.appendChild(mkBtn('Rename', 'btn-ghost', BASE, () => renameScript(s)));
-                actions.appendChild(mkBtn('Run', 'btn-primary', BASE, () => runScript(s)));
-                actions.appendChild(isSystem
-                    ? mkBtn('Reset', 'btn-danger', BASE + ' border: none;', () => resetScript(s))
-                    : mkBtn('Del', 'btn-danger', BASE + ' border: none;', () => deleteScript(s)));
-
-                item.appendChild(left);
-                item.appendChild(actions);
-                list.appendChild(item);
+        // Toggle the running highlight on already-rendered rows without a full re-render.
+        function updateRunningHighlight() {
+            document.querySelectorAll('#script-list .script-item').forEach(el => {
+                el.classList.toggle('running', !!runningScript && el.dataset.name === runningScript);
             });
+        }
+
+        function renderScriptItem(meta, showFolder) {
+            const BASE = 'padding: 6px 10px; font-size: 0.7rem;';
+            const s = meta.name;
+            const profile = meta.profile || '';
+            const isSystem = s === 'ui_explorer.py';
+            const item = document.createElement('div');
+            item.className = 'script-item' + (runningScript && runningScript === s ? ' running' : '');
+            item.dataset.name = s;
+
+            const left = document.createElement('div');
+            left.className = 'script-left';
+
+            const check = document.createElement('input');
+            check.type = 'checkbox';
+            check.className = 'cbox script-check';
+            check.checked = queue.some(q => skey(q) === skey(meta));
+            check.dataset.key = skey(meta);
+            check.disabled = isSystem; // system utility — not addable to run queue or bulk delete
+            check.title = isSystem ? 'System script — cannot be queued or deleted' : 'Select — for run queue or bulk delete';
+            check.addEventListener('change', () => toggleQueue({ name: s, profile }, check.checked));
+
+            const info = document.createElement('div');
+            info.className = 'script-info';
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'script-name';
+            nameSpan.textContent = s;
+            nameSpan.title = profile ? profile + ' / ' + s : s;
+            info.appendChild(nameSpan);
+            if (showFolder) {
+                const folder = document.createElement('span');
+                folder.className = 'script-folder';
+                folder.textContent = profile || 'Uncategorized';
+                info.appendChild(folder);
+            }
+            const runFlag = document.createElement('span');
+            runFlag.className = 'run-flag';
+            runFlag.textContent = 'Running';
+            info.appendChild(runFlag);
+            const when = formatWhen(meta.modified);
+            if (when) {
+                const metaSpan = document.createElement('span');
+                metaSpan.className = 'script-meta';
+                metaSpan.textContent = when;
+                info.appendChild(metaSpan);
+            }
+            left.appendChild(check);
+            left.appendChild(info);
+
+            const actions = document.createElement('div');
+            actions.className = 'script-actions';
+            const mkBtn = (text, cls, style, handler) => {
+                const b = document.createElement('button');
+                b.className = `btn ${cls}`;
+                b.style.cssText = style;
+                b.textContent = text;
+                b.addEventListener('click', handler);
+                return b;
+            };
+
+            actions.appendChild(mkBtn('Edit', 'btn-ghost', BASE, () => openEditor(s, profile)));
+            if (!isSystem) actions.appendChild(mkBtn('Rename', 'btn-ghost', BASE, () => renameScript(s, profile)));
+            actions.appendChild(mkBtn('Run', 'btn-primary', BASE, () => runScript(s, profile)));
+            actions.appendChild(isSystem
+                ? mkBtn('Reset', 'btn-danger', BASE + ' border: none;', () => resetScript(s, profile))
+                : mkBtn('Del', 'btn-danger', BASE + ' border: none;', () => deleteScript(s, profile)));
+
+            item.appendChild(left);
+            item.appendChild(actions);
+            return item;
         }
 
         // ---- Run Queue (multi-script sequence) ----
@@ -1002,9 +1240,10 @@
         let availableScripts = [];
         let queueDragFrom = null;
 
-        function toggleQueue(name, on) {
-            if (on) { if (!queue.includes(name)) queue.push(name); }
-            else { queue = queue.filter(n => n !== name); }
+        function toggleQueue(item, on) {
+            const k = skey(item);
+            if (on) { if (!queue.some(q => skey(q) === k)) queue.push(item); }
+            else { queue = queue.filter(q => skey(q) !== k); }
             renderQueue();
         }
 
@@ -1015,10 +1254,11 @@
             renderQueue();
         }
 
-        function removeFromQueue(name) {
-            queue = queue.filter(n => n !== name);
+        function removeFromQueue(item) {
+            const k = skey(item);
+            queue = queue.filter(q => skey(q) !== k);
             document.querySelectorAll('.script-check').forEach(c => {
-                if (c.dataset.name === name) c.checked = false;
+                if (c.dataset.key === k) c.checked = false;
             });
             renderQueue();
         }
@@ -1030,13 +1270,15 @@
         }
 
         function renderQueue() {
+            renderProfileToolbar(); // the "Move N here" button tracks the current selection
             const panel = document.getElementById('queue-panel');
             const list = document.getElementById('queue-list');
             document.getElementById('queue-count').textContent = queue.length;
             if (queue.length === 0) { panel.style.display = 'none'; list.innerHTML = ''; return; }
             panel.style.display = 'block';
             list.innerHTML = '';
-            queue.forEach((name, i) => {
+            queue.forEach((item, i) => {
+                const name = item.name;
                 const row = document.createElement('div');
                 row.className = 'queue-row';
                 row.draggable = true;
@@ -1050,6 +1292,7 @@
                 const nm = document.createElement('span');
                 nm.className = 'q-name';
                 nm.textContent = name;
+                nm.title = item.profile ? item.profile + ' / ' + name : name;
                 const mk = (txt, handler, disabled) => {
                     const b = document.createElement('button');
                     b.textContent = txt; b.disabled = !!disabled;
@@ -1078,7 +1321,7 @@
                 row.appendChild(nm);
                 row.appendChild(mk('▲', () => moveInQueue(i, -1), i === 0));
                 row.appendChild(mk('▼', () => moveInQueue(i, 1), i === queue.length - 1));
-                row.appendChild(mk('✕', () => removeFromQueue(name)));
+                row.appendChild(mk('✕', () => removeFromQueue(item)));
                 list.appendChild(row);
             });
         }
@@ -1099,50 +1342,146 @@
             }
         }
 
-        async function openEditor(name) {
-            if (!confirmDiscard()) return;
-            const res = await api('/script_content?name=' + encodeURIComponent(name));
-            if (res && res.ok) { document.getElementById('editor-filename').value = name; editor.setValue(await res.text(), -1); setDirty(false); switchTab('editor'); }
+        // Reflects (and stores) the folder the editor is working in. Folder changes happen via the
+        // tab-based Move action in the list, not from inside the editor, so this is display-only.
+        function setEditorFolder(profile) {
+            editingProfile = profileExists(profile) ? profile : '';
+            const el = document.getElementById('editor-folder');
+            if (el) el.textContent = '📁 ' + (editingProfile || 'Uncategorized');
+        }
+
+        async function openEditor(name, profile = '') {
+            if (!(await confirmDiscard())) return;
+            const res = await api('/script_content?name=' + encodeURIComponent(name) + '&profile=' + encodeURIComponent(profile));
+            if (res && res.ok) {
+                document.getElementById('editor-filename').value = name;
+                setEditorFolder(profile);
+                editor.setValue(await res.text(), -1); setDirty(false); switchTab('editor');
+            }
         }
 
         async function saveScript(quiet = false) {
             const name = document.getElementById('editor-filename').value.trim();
             if (!name) return false;
             const fullName = name.endsWith('.py') ? name : name + '.py';
-            const res = await api('/save_script?name=' + encodeURIComponent(fullName), 'POST', 'postData=' + encodeURIComponent(editor.getValue()));
+            const res = await api('/save_script?name=' + encodeURIComponent(fullName) + '&profile=' + encodeURIComponent(editingProfile),
+                'POST', 'postData=' + encodeURIComponent(editor.getValue()));
             if (res && res.ok) { setDirty(false); loadScripts(); if (!quiet) toast('Saved'); return true; }
             return false;
         }
 
-        async function saveAndRun() { if (await saveScript(true)) runScript(document.getElementById('editor-filename').value.trim()); }
-        async function runScript(name) { const res = await api('/run?name=' + encodeURIComponent(name), 'POST'); if (res && res.ok) { switchTab('terminal'); document.getElementById('log-terminal').innerText = 'Starting...'; } }
+        async function saveAndRun() {
+            if (await saveScript(true)) runScript(document.getElementById('editor-filename').value.trim(), editingProfile);
+        }
+        async function runScript(name, profile = '') { const res = await api('/run?name=' + encodeURIComponent(name) + '&profile=' + encodeURIComponent(profile), 'POST'); if (res && res.ok) { switchTab('terminal'); document.getElementById('log-terminal').innerText = 'Starting...'; } }
         async function stopCurrent() { await api('/stop', 'POST'); }
         async function skipCurrent() { await api('/skip', 'POST'); }
-        async function deleteScript(name) { if (confirm('Delete?')) { await api('/delete?name=' + encodeURIComponent(name), 'POST'); loadScripts(); } }
+        async function deleteScript(name, profile = '') {
+            const where = profile ? ' from “' + profile + '”' : '';
+            if (await confirmModal('Delete script?', 'Delete “' + name + '”' + where + '? This cannot be undone.', { confirmText: 'Delete', danger: true })) {
+                await api('/delete?name=' + encodeURIComponent(name) + '&profile=' + encodeURIComponent(profile), 'POST'); loadScripts();
+            }
+        }
         async function bulkDelete() {
             const selected = queue.slice();
             if (selected.length === 0) {
                 toast('Select scripts with the checkboxes first, then tap the bin.', false);
                 return;
             }
-            const deletable = selected.filter(n => n !== 'ui_explorer.py');
-            const skipped = selected.filter(n => n === 'ui_explorer.py');
+            const deletable = selected.filter(s => s.name !== 'ui_explorer.py');
+            const skipped = selected.filter(s => s.name === 'ui_explorer.py');
             if (deletable.length === 0) {
                 toast('“ui_explorer.py” is a system script — use Reset instead.', false);
                 return;
             }
-            let msg = 'Delete ' + deletable.length + ' selected script(s)? This cannot be undone.\n\n    – ' + deletable.join('\n    – ');
+            const label = s => s.profile ? s.profile + ' / ' + s.name : s.name;
+            let msg = 'Delete ' + deletable.length + ' selected script(s)? This cannot be undone.\n\n' + deletable.map(label).join(', ');
             if (skipped.length) msg += '\n\n(“ui_explorer.py” will be skipped — it’s a system script.)';
-            if (!confirm(msg)) return;
-            for (const name of deletable) {
-                await api('/delete?name=' + encodeURIComponent(name), 'POST');
+            if (!(await confirmModal('Delete ' + deletable.length + ' scripts?', msg, { confirmText: 'Delete', danger: true }))) return;
+            for (const s of deletable) {
+                await api('/delete?name=' + encodeURIComponent(s.name) + '&profile=' + encodeURIComponent(s.profile || ''), 'POST');
             }
             queue = [];
             loadScripts();
         }
-        async function resetScript(name) { if (confirm('Reset?')) { await api('/reset?name=' + encodeURIComponent(name), 'POST'); loadScripts(); } }
-        async function renameScript(o) { const n = prompt('New name:', o); if (n && n !== o) { await api(`/rename?old_name=${encodeURIComponent(o)}&new_name=${encodeURIComponent(n)}`, 'POST'); loadScripts(); } }
+        async function resetScript(name, profile = '') {
+            if (await confirmModal('Reset script?', 'Restore “' + name + '” to its original built-in version? Your changes will be lost.', { confirmText: 'Reset', danger: true })) {
+                await api('/reset?name=' + encodeURIComponent(name) + '&profile=' + encodeURIComponent(profile), 'POST'); loadScripts();
+            }
+        }
+        async function renameScript(o, profile = '') {
+            const n = await promptModal('Rename script', { value: o, confirmText: 'Rename', validate: v => v ? null : 'Name can\'t be empty.' });
+            if (!n || n === o) return;
+            const res = await api(`/rename?old_name=${encodeURIComponent(o)}&new_name=${encodeURIComponent(n)}&profile=${encodeURIComponent(profile)}`, 'POST');
+            if (res && res.ok) { toast('Renamed'); loadScripts(); }
+            else if (res && res.status === 409) toast('A script named “' + n + '” already exists here', false);
+            else toast('Rename failed', false);
+        }
         async function sendInput() { const i = document.getElementById('term-input'); await api('/input?data=' + encodeURIComponent(i.value), 'POST'); document.getElementById('log-terminal').innerText = '> ' + i.value + '\n(Sent)'; i.value = ''; }
+
+        // ---- Profiles (script folders) ----
+        // Themed prompt for a folder name unique among existing folders (case-insensitive); the
+        // error shows inline without closing. [exclude] is the current name when renaming.
+        function promptFolderName(title, initial, exclude) {
+            return promptModal(title, {
+                value: initial || '', placeholder: 'Folder name', confirmText: 'Save',
+                validate: v => {
+                    if (!v) return 'Folder name can\'t be empty.';
+                    if (exclude && v.toLowerCase() === exclude.toLowerCase()) return null; // a pure case change is fine
+                    if (profilesMeta.some(p => p.name !== exclude && p.name.toLowerCase() === v.toLowerCase()))
+                        return 'A folder named “' + v + '” already exists.';
+                    return null;
+                },
+            });
+        }
+
+        async function createProfile() {
+            if (!currentToken) { toast('Connect first', false); return; }
+            const name = await promptFolderName('New folder', '', null);
+            if (!name) return;
+            const res = await api('/create_profile?name=' + encodeURIComponent(name), 'POST');
+            if (res && res.ok) {
+                activeProfile = await res.json().then(j => j.name).catch(() => name); // jump to the new folder
+                toast('Folder created'); loadScripts();
+            }
+            else if (res && res.status === 409) toast('A folder named “' + name + '” already exists', false);
+            else toast('Could not create folder', false);
+        }
+
+        async function renameProfile(oldName) {
+            const newName = await promptFolderName('Rename folder', oldName, oldName);
+            if (!newName || newName === oldName) return;
+            const res = await api('/rename_profile?old_name=' + encodeURIComponent(oldName) + '&new_name=' + encodeURIComponent(newName), 'POST');
+            if (res && res.ok) {
+                const applied = await res.json().then(j => j.name).catch(() => newName);
+                if (activeProfile === oldName) activeProfile = applied; // keep the renamed folder selected
+                toast('Folder renamed'); loadScripts();
+            }
+            else if (res && res.status === 409) toast('A folder named “' + newName + '” already exists', false);
+            else toast('Could not rename folder', false);
+        }
+
+        async function deleteProfile(name) {
+            if (!(await confirmModal('Delete folder?', 'Delete the folder “' + name + '”? Any scripts inside it will be moved to Uncategorized (not deleted).', { confirmText: 'Delete folder', danger: true }))) return;
+            const res = await api('/delete_profile?name=' + encodeURIComponent(name), 'POST');
+            if (res && res.ok) {
+                const moved = await res.json().then(j => j.moved).catch(() => 0);
+                toast(moved ? ('Folder deleted — ' + moved + ' script(s) moved to Uncategorized') : 'Folder deleted');
+                loadScripts();
+            } else toast('Could not delete folder', false);
+        }
+
+        async function moveScripts(items, dest) {
+            const body = JSON.stringify({ to: dest, scripts: items.map(s => ({ name: s.name, profile: s.profile || '' })) });
+            const res = await api('/move_scripts', 'POST', body, 'application/json');
+            if (res && res.ok) {
+                const moved = await res.json().then(j => j.moved).catch(() => 0);
+                toast(moved ? ('Moved ' + moved + ' script(s)') : 'Nothing to move');
+                const movedKeys = new Set(items.map(skey)); // their keys change — drop stale queue entries
+                queue = queue.filter(q => !movedKeys.has(skey(q)));
+                loadScripts();
+            } else toast('Move failed', false);
+        }
 
         // Small toast with an animated check (✓) / cross (✕) instead of a blocking alert.
         function toast(msg, ok = true) {
@@ -1223,6 +1562,9 @@
             else { setBadge(badge, 'Connected', 'ok'); }
             setStopRunning(isRunning);
 
+            const nowRunning = isRunning ? (status.current_script || null) : null;
+            if (nowRunning !== runningScript) { runningScript = nowRunning; updateRunningHighlight(); }
+
             if (isRunning) { lastScriptState = true; clearTimeout(stopPollingTimer); stopPollingTimer = null; }
             else if (lastScriptState && !stopPollingTimer) { stopPollingTimer = setTimeout(() => { lastScriptState = false; }, 3000); }
 
@@ -1266,7 +1608,7 @@
             if (!text.trim()) { toast('Console is empty', false); return; }
             copyText(text);
         }
-        function newScript() { if (!confirmDiscard()) return; document.getElementById('editor-filename').value = 'new.py'; if (editor) { editor.setValue('# New Script\nimport automator\n', -1); setDirty(false); } switchTab('editor'); }
+        async function newScript() { if (!(await confirmDiscard())) return; document.getElementById('editor-filename').value = 'new.py'; setEditorFolder(activeProfile === '__all__' ? '' : activeProfile); if (editor) { editor.setValue('# New Script\nimport automator\n', -1); setDirty(false); } switchTab('editor'); }
 
         function toggleExportMenu(e) {
             e.stopPropagation();
@@ -1277,7 +1619,7 @@
             menu.style.right = (window.innerWidth - r.right) + 'px';
             menu.classList.toggle('open');
         }
-        document.addEventListener('click', () => { const m = document.getElementById('export-menu'); if (m) m.classList.remove('open'); });
+        document.addEventListener('click', () => { document.getElementById('export-menu')?.classList.remove('open'); });
 
         async function exportScripts(includeLogs = false) {
             document.getElementById('export-menu')?.classList.remove('open');
@@ -1335,7 +1677,7 @@
         }
 
         function showImportResult(data) {
-            let msg = 'Import complete\n\n• ' + data.added + ' added';
+            let msg = '• ' + data.added + ' added';
             if (data.overwritten) msg += '\n• ' + data.overwritten + ' overwritten:\n    – ' + data.overwritten_names.join('\n    – ');
             if (data.copied) msg += '\n• ' + data.copied + ' kept as copy:\n    – ' + data.copied_names.join('\n    – ');
             if (data.unchanged) msg += '\n• ' + data.unchanged + ' unchanged (identical, skipped)';
@@ -1343,7 +1685,7 @@
             if (data.manifest && data.manifest.exported_at) {
                 msg += '\n\nBackup from: ' + new Date(data.manifest.exported_at).toLocaleString();
             }
-            alert(msg);
+            infoModal('Import complete', msg);
         }
 
         async function handleImportFile(event) {

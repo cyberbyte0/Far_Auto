@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -28,6 +29,8 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.google.android.material.switchmaterial.SwitchMaterial
 import java.io.File
 import java.util.Collections
@@ -38,6 +41,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: ScriptAdapter
     private val scripts = mutableListOf<File>()      // displayed (filtered + sorted)
     private val allScripts = mutableListOf<File>()   // master, unfiltered
+    private val profiles = mutableListOf<String>()   // folder names under scripts/
+    private var activeFolder: String? = null         // null = All, "" = Uncategorized, else folder name
     private var searchQuery = ""
     private var sortMode = SortMode.NAME_ASC
 
@@ -311,7 +316,7 @@ class MainActivity : AppCompatActivity() {
         val btnNew = findViewById<com.google.android.material.floatingactionbutton.FloatingActionButton>(R.id.btnNew)
         var isMenuOpen = false
 
-        adapter = ScriptAdapter(scripts, 
+        adapter = ScriptAdapter(scripts,
             onRun = { runScript(it) },
             onEdit = { editScript(it) },
             onDelete = { file ->
@@ -326,22 +331,19 @@ class MainActivity : AppCompatActivity() {
                         .setNegativeButton("Cancel", null)
                         .show()
                 } else {
-                    file.delete()
-                    refreshScripts()
+                    AlertDialog.Builder(this)
+                        .setTitle("Delete script")
+                        .setMessage("Delete \"${file.name}\"? This cannot be undone.")
+                        .setPositiveButton("Delete") { _, _ -> file.delete(); refreshScripts() }
+                        .setNegativeButton("Cancel", null)
+                        .show()
                 }
             },
-            onRename = { file ->
-                if (file.name != "ui_explorer.py") {
-                    val input = EditText(this).apply { setText(file.name) }
-                    AlertDialog.Builder(this).setTitle("Rename").setView(input)
-                        .setPositiveButton("OK") { _, _ ->
-                            val newName = input.text.toString().trim()
-                            if (newName.isNotEmpty()) {
-                                val fixed = if (newName.endsWith(".py")) newName else "$newName.py"
-                                if (file.renameTo(File(file.parentFile, fixed))) refreshScripts()
-                            }
-                        }.show()
-                }
+            onOptions = { file, view -> showScriptOptions(file, view) },
+            subtitleProvider = { f ->
+                // In the "All" view, show which folder a script lives in.
+                if (activeFolder == null) profileOf(f).let { if (it.isEmpty()) "Python Script" else "📁 $it" }
+                else "Python Script"
             },
             onSelectionChanged = { updateSelectionCount() }
         )
@@ -397,6 +399,9 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<View>(R.id.menuCreate).setOnClickListener {
             closeFabMenu(btnNew, fabMenu); isMenuOpen = false; createNewScript()
+        }
+        findViewById<View>(R.id.menuNewFolder).setOnClickListener {
+            closeFabMenu(btnNew, fabMenu); isMenuOpen = false; createFolder()
         }
         findViewById<View>(R.id.menuImport).setOnClickListener {
             closeFabMenu(btnNew, fabMenu); isMenuOpen = false; importLauncher.launch("*/*")
@@ -524,7 +529,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun createNewScript() {
-        val dir = getStorageDir(this, "scripts")
+        // Create inside the active folder (if one is selected) so it lands where the user is looking.
+        val dir = if (activeFolder != null && activeFolder != "") File(scriptsDir(), activeFolder!!).apply { mkdirs() }
+                  else scriptsDir()
         val file = File(dir, "script_${System.currentTimeMillis()}.py")
         file.writeText("# New Script\nimport automator\n")
         refreshScripts()
@@ -570,9 +577,13 @@ class MainActivity : AppCompatActivity() {
             while (entry != null) {
                 val entryName = entry.name
                 val base = entryName.substringAfterLast('/')
+                // "Folder/name.py" restores into that folder; deeper paths collapse to one level.
+                val segs = entryName.split('/').filter { it.isNotEmpty() && it != ".." && it != "." }
+                val profile = if (segs.size >= 2 && segs[segs.size - 2] != "logs") segs[segs.size - 2] else ""
+                val rel = if (profile.isEmpty()) base else "$profile/$base"
                 if (!entry.isDirectory) {
                     when {
-                        entryName.endsWith(".py", true) -> scriptsIn[base] = zis.readBytes()
+                        entryName.endsWith(".py", true) -> scriptsIn[rel] = zis.readBytes()
                         entryName.startsWith("logs/") && base.isNotEmpty() -> logsIn[base] = zis.readBytes()
                         base == "manifest.json" -> manifestDate = try {
                             org.json.JSONObject(String(zis.readBytes())).optLong("exported_at", 0L).takeIf { it > 0 }
@@ -605,15 +616,15 @@ class MainActivity : AppCompatActivity() {
 
         val finalUnchanged = unchanged
         val apply = { mode: String ->
-            for (base in added) File(scriptsDir, base).writeBytes(scriptsIn[base]!!)
+            for (base in added) File(scriptsDir, base).apply { parentFile?.mkdirs() }.writeBytes(scriptsIn[base]!!)
             var overwritten = 0
             var copied = 0
             for (base in conflicts) {
                 val content = scriptsIn[base]!!
                 if (mode == "copy") {
-                    uniqueCopyName(scriptsDir, base).writeBytes(content); copied++
+                    uniqueCopyName(scriptsDir, base).apply { parentFile?.mkdirs() }.writeBytes(content); copied++
                 } else {
-                    File(scriptsDir, base).writeBytes(content); overwritten++
+                    File(scriptsDir, base).apply { parentFile?.mkdirs() }.writeBytes(content); overwritten++
                 }
             }
             var logsRestored = 0
@@ -696,10 +707,20 @@ class MainActivity : AppCompatActivity() {
     private fun exportAllScripts(includeLogs: Boolean) {
         val zipFile = File(getExternalFilesDir("exports"), "far_auto_backup.zip")
         try {
-            val scriptFiles = getStorageDir(this, "scripts").listFiles()?.filter { it.extension == "py" } ?: emptyList()
+            // (profile, file) pairs — folder scripts are zipped under "Folder/name.py" so the backup
+            // round-trips the layout; uncategorized scripts stay at the archive root.
+            val sDir = getStorageDir(this, "scripts")
+            val scriptEntries = ArrayList<Pair<String, File>>()
+            sDir.listFiles()?.forEach { entry ->
+                when {
+                    entry.isFile && entry.extension == "py" -> scriptEntries.add(entry.name to entry)
+                    entry.isDirectory -> entry.listFiles()?.filter { it.isFile && it.extension == "py" }
+                        ?.forEach { scriptEntries.add("${entry.name}/${it.name}" to it) }
+                }
+            }
             java.util.zip.ZipOutputStream(zipFile.outputStream()).use { zos ->
-                for (file in scriptFiles) {
-                    zos.putNextEntry(java.util.zip.ZipEntry(file.name))
+                for ((entryPath, file) in scriptEntries) {
+                    zos.putNextEntry(java.util.zip.ZipEntry(entryPath))
                     file.inputStream().use { it.copyTo(zos) }
                     zos.closeEntry()
                 }
@@ -714,8 +735,8 @@ class MainActivity : AppCompatActivity() {
                     put("app", "Far_Auto")
                     put("manifest_version", 1)
                     put("exported_at", System.currentTimeMillis())
-                    put("script_count", scriptFiles.size)
-                    put("scripts", org.json.JSONArray(scriptFiles.map { it.name }))
+                    put("script_count", scriptEntries.size)
+                    put("scripts", org.json.JSONArray(scriptEntries.map { it.first }))
                     put("includes_logs", includeLogs)
                 }
                 zos.putNextEntry(java.util.zip.ZipEntry("manifest.json"))
@@ -740,16 +761,39 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun scriptsDir() = getStorageDir(this, "scripts")
+
+    /** Folder a script lives in: "" for the scripts/ root (Uncategorized), else the subfolder name. */
+    private fun profileOf(file: File): String =
+        if (file.parentFile?.absolutePath == scriptsDir().absolutePath) "" else (file.parentFile?.name ?: "")
+
     private fun refreshScripts() {
         allScripts.clear()
-        getStorageDir(this, "scripts").listFiles()?.filter { it.extension == "py" }?.let { allScripts.addAll(it) }
+        profiles.clear()
+        // Scripts may live in the root (uncategorized) or in one-level profile subfolders.
+        // Flatten both so nothing vanishes from the in-app list; collect folder names for the chips.
+        scriptsDir().listFiles()?.forEach { entry ->
+            when {
+                entry.isFile && entry.extension == "py" -> allScripts.add(entry)
+                entry.isDirectory -> {
+                    profiles.add(entry.name)
+                    entry.listFiles()?.filter { it.isFile && it.extension == "py" }?.let { allScripts.addAll(it) }
+                }
+            }
+        }
+        profiles.sortBy { it.lowercase() }
+        // If the active folder was deleted/renamed away, fall back to All.
+        if (activeFolder != null && activeFolder != "" && activeFolder !in profiles) activeFolder = null
         applyView()
     }
 
-    /** Rebuilds the displayed list from [allScripts] applying the current search query and sort. */
+    /** Rebuilds the displayed list from [allScripts] applying the active folder, search, and sort. */
     private fun applyView() {
+        buildFolderChips()
         val q = searchQuery.trim().lowercase()
-        val filtered = if (q.isEmpty()) allScripts else allScripts.filter { it.name.lowercase().contains(q) }
+        var filtered = allScripts.toList()
+        if (activeFolder != null) filtered = filtered.filter { profileOf(it) == activeFolder }
+        if (q.isNotEmpty()) filtered = filtered.filter { it.name.lowercase().contains(q) }
         val sorted = when (sortMode) {
             SortMode.NAME_ASC -> filtered.sortedBy { it.name.lowercase() }
             SortMode.NAME_DESC -> filtered.sortedByDescending { it.name.lowercase() }
@@ -759,6 +803,218 @@ class MainActivity : AppCompatActivity() {
         scripts.clear()
         scripts.addAll(sorted)
         adapter.notifyDataSetChanged()
+    }
+
+    // ---- Folders (profiles) ----
+
+    /** Rebuilds the folder filter chip row: All · Uncategorized · <each folder> · + Folder. */
+    private fun buildFolderChips() {
+        val group = findViewById<ChipGroup>(R.id.folderChips) ?: return
+        group.removeAllViews()
+        val accent = ContextCompat.getColor(this, R.color.accent)
+        val surface = ContextCompat.getColor(this, R.color.surface)
+        val textPrimary = ContextCompat.getColor(this, R.color.text_primary)
+        val white = ContextCompat.getColor(this, R.color.white)
+
+        fun makeChip(label: String, value: String?, count: Int?): Chip {
+            val active = activeFolder == value
+            return Chip(this).apply {
+                text = if (count != null) "$label  $count" else label
+                isCheckable = false
+                isClickable = true
+                chipStrokeWidth = 0f
+                chipBackgroundColor = ColorStateList.valueOf(if (active) accent else surface)
+                setTextColor(if (active) white else textPrimary)
+                setOnClickListener { if (activeFolder != value) { activeFolder = value; applyView() } }
+            }
+        }
+
+        val uncategorized = allScripts.count { profileOf(it).isEmpty() }
+        group.addView(makeChip("All", null, allScripts.size))
+        group.addView(makeChip("Uncategorized", "", uncategorized))
+        profiles.forEach { name ->
+            val count = allScripts.count { profileOf(it) == name }
+            group.addView(makeChip(name, name, count).apply {
+                setOnLongClickListener { showFolderOptions(this, name); true }
+            })
+        }
+        // Trailing "+ Folder" chip to create a new one.
+        group.addView(Chip(this).apply {
+            text = "+ Folder"
+            isCheckable = false
+            chipStrokeWidth = 0f
+            chipBackgroundColor = ColorStateList.valueOf(ContextCompat.getColor(this@MainActivity, R.color.accent_dim))
+            setTextColor(accent)
+            setOnClickListener { createFolder() }
+        })
+    }
+
+    private fun showFolderOptions(anchor: View, name: String) {
+        val popup = android.widget.PopupMenu(this, anchor)
+        popup.menu.add(0, 0, 0, "Rename folder")
+        popup.menu.add(0, 1, 1, "Delete folder")
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                0 -> renameFolder(name)
+                1 -> deleteFolder(name)
+            }
+            true
+        }
+        popup.show()
+    }
+
+    private fun createFolder() {
+        val input = EditText(this).apply { hint = "Folder name" }
+        AlertDialog.Builder(this)
+            .setTitle("New folder")
+            .setView(input)
+            .setPositiveButton("Create") { _, _ ->
+                val name = input.text.toString().trim()
+                when {
+                    name.isEmpty() -> toast("Folder name can't be empty")
+                    profiles.any { it.equals(name, ignoreCase = true) } -> toast("A folder named \"$name\" already exists")
+                    File(scriptsDir(), name).mkdirs() -> { activeFolder = name; refreshScripts(); toast("Folder created") }
+                    else -> toast("Could not create folder")
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun renameFolder(oldName: String) {
+        val input = EditText(this).apply { setText(oldName) }
+        AlertDialog.Builder(this)
+            .setTitle("Rename folder")
+            .setView(input)
+            .setPositiveButton("Rename") { _, _ ->
+                val newName = input.text.toString().trim()
+                when {
+                    newName.isEmpty() || newName == oldName -> {}
+                    profiles.any { it != oldName && it.equals(newName, ignoreCase = true) } -> toast("A folder named \"$newName\" already exists")
+                    File(scriptsDir(), oldName).renameTo(File(scriptsDir(), newName)) -> {
+                        if (activeFolder == oldName) activeFolder = newName
+                        refreshScripts(); toast("Folder renamed")
+                    }
+                    else -> toast("Could not rename folder")
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun deleteFolder(name: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Delete folder")
+            .setMessage("Delete the folder \"$name\"? Any scripts inside it will be moved to Uncategorized (not deleted).")
+            .setPositiveButton("Delete") { _, _ ->
+                val dir = File(scriptsDir(), name)
+                var moved = 0
+                dir.listFiles()?.filter { it.isFile }?.forEach { if (moveScriptSafely(it, scriptsDir())) moved++ }
+                dir.deleteRecursively()
+                if (activeFolder == name) activeFolder = null
+                refreshScripts()
+                toast(if (moved > 0) "Folder deleted — $moved script(s) moved to Uncategorized" else "Folder deleted")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /** Move dialog for a single script: pick Uncategorized, an existing folder, or a new one. */
+    private fun showMoveDialog(file: File) {
+        val current = profileOf(file)
+        val destinations = ArrayList<Pair<String, String?>>() // label -> profile value ("" root, name, null=new)
+        if (current.isNotEmpty()) destinations.add("Uncategorized" to "")
+        profiles.filter { it != current }.forEach { destinations.add(it to it) }
+        destinations.add("+ New folder…" to null)
+        val labels = destinations.map { it.first }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Move \"${file.name}\" to")
+            .setItems(labels) { _, which ->
+                val dest = destinations[which].second
+                if (dest == null) {
+                    promptNewFolderThenMove(file)
+                } else {
+                    moveScriptToFolder(file, dest)
+                }
+            }
+            .show()
+    }
+
+    private fun promptNewFolderThenMove(file: File) {
+        val input = EditText(this).apply { hint = "Folder name" }
+        AlertDialog.Builder(this)
+            .setTitle("New folder")
+            .setView(input)
+            .setPositiveButton("Create & move") { _, _ ->
+                val name = input.text.toString().trim()
+                when {
+                    name.isEmpty() -> toast("Folder name can't be empty")
+                    profiles.any { it.equals(name, ignoreCase = true) } -> toast("A folder named \"$name\" already exists")
+                    File(scriptsDir(), name).mkdirs() || File(scriptsDir(), name).isDirectory -> moveScriptToFolder(file, name)
+                    else -> toast("Could not create folder")
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun moveScriptToFolder(file: File, destProfile: String) {
+        val destDir = if (destProfile.isEmpty()) scriptsDir() else File(scriptsDir(), destProfile)
+        if (file.parentFile?.absolutePath == destDir.absolutePath) return
+        if (moveScriptSafely(file, destDir)) {
+            activeFolder = if (destProfile.isEmpty()) "" else destProfile
+            refreshScripts()
+            toast(if (destProfile.isEmpty()) "Moved to Uncategorized" else "Moved to \"$destProfile\"")
+        } else toast("Move failed")
+    }
+
+    /** Move [src] into [destDir], picking a non-clobbering "name (n).py" if needed. */
+    private fun moveScriptSafely(src: File, destDir: File): Boolean {
+        destDir.mkdirs()
+        var dest = File(destDir, src.name)
+        if (dest.exists()) {
+            val dot = src.name.lastIndexOf('.')
+            val base = if (dot > 0) src.name.substring(0, dot) else src.name
+            val ext = if (dot > 0) src.name.substring(dot) else ""
+            var n = 1
+            while (dest.exists()) { dest = File(destDir, "$base ($n)$ext"); n++ }
+        }
+        if (src.renameTo(dest)) return true
+        return try { src.copyTo(dest, overwrite = false); src.delete(); true }
+        catch (e: Exception) { Log.e("FarAuto", "Move failed: ${src.name}", e); false }
+    }
+
+    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+
+    /** Long-press menu on a script row: Rename / Move to folder (system script: nothing). */
+    private fun showScriptOptions(file: File, anchor: View) {
+        if (file.name == "ui_explorer.py") return // system utility — not renamable/movable
+        val popup = android.widget.PopupMenu(this, anchor)
+        popup.menu.add(0, 0, 0, "Rename")
+        popup.menu.add(0, 1, 1, "Move to folder…")
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                0 -> showRenameDialog(file)
+                1 -> showMoveDialog(file)
+            }
+            true
+        }
+        popup.show()
+    }
+
+    private fun showRenameDialog(file: File) {
+        val input = EditText(this).apply { setText(file.name) }
+        AlertDialog.Builder(this).setTitle("Rename").setView(input)
+            .setPositiveButton("Rename") { _, _ ->
+                val newName = input.text.toString().trim()
+                if (newName.isNotEmpty()) {
+                    val fixed = if (newName.endsWith(".py")) newName else "$newName.py"
+                    if (file.renameTo(File(file.parentFile, fixed))) refreshScripts()
+                    else toast("Could not rename")
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun runScript(file: File) {
@@ -775,7 +1031,8 @@ class MainActivity : AppCompatActivity() {
         private val onRun: (File) -> Unit,
         private val onEdit: (File) -> Unit,
         private val onDelete: (File) -> Unit,
-        private val onRename: (File) -> Unit,
+        private val onOptions: (File, View) -> Unit,
+        private val subtitleProvider: (File) -> String = { "Python Script" },
         private val onSelectionChanged: () -> Unit = {}
     ) : RecyclerView.Adapter<ScriptAdapter.ViewHolder>() {
 
@@ -790,6 +1047,7 @@ class MainActivity : AppCompatActivity() {
 
         class ViewHolder(v: View) : RecyclerView.ViewHolder(v) {
             val name: TextView = v.findViewById(R.id.scriptName)
+            val subtitle: TextView = v.findViewById(R.id.scriptSubtitle)
             val check: CheckBox = v.findViewById(R.id.scriptSelect)
             val btnRun: View = v.findViewById(R.id.btnRun)
             val btnEdit: View = v.findViewById(R.id.btnEdit)
@@ -800,6 +1058,7 @@ class MainActivity : AppCompatActivity() {
             val f = scripts[p]
             val isSystem = f.name == "ui_explorer.py"
             h.name.text = f.name
+            h.subtitle.text = if (isSystem) "System utility" else subtitleProvider(f)
             if (isSystem) (h.btnDel as? android.widget.ImageButton)?.setImageResource(android.R.drawable.ic_menu_revert)
             else (h.btnDel as? android.widget.ImageButton)?.setImageResource(android.R.drawable.ic_menu_delete)
 
@@ -828,7 +1087,7 @@ class MainActivity : AppCompatActivity() {
                 h.btnEdit.setOnClickListener { onEdit(f) }
                 h.btnDel.setOnClickListener { onDelete(f) }
                 h.itemView.setOnClickListener(null)
-                h.itemView.setOnLongClickListener { onRename(f); true }
+                h.itemView.setOnLongClickListener { onOptions(f, h.itemView); true }
             }
         }
         override fun getItemCount() = scripts.size
