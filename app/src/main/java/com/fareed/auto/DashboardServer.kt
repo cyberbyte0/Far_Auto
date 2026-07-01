@@ -3,6 +3,8 @@ package com.fareed.auto
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.chaquo.python.Python
+import com.chaquo.python.android.AndroidPlatform
 import fi.iki.elonen.NanoHTTPD
 import org.json.JSONArray
 import org.json.JSONObject
@@ -112,6 +114,7 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
             "/script_content" -> handleGetScriptContent(session)
             "/save_script" -> handleSaveScript(session)
             "/clear_logs" -> handleClearLogs()
+            "/api_reference" -> handleApiReference()
             "/banner" -> handleBanner(session)
             "/export_scripts" -> handleExportScripts(session)
             "/import_script" -> handleImportScript(session)
@@ -128,6 +131,24 @@ class DashboardServer(private val context: Context, port: Int) : NanoHTTPD(port)
 
         response.addHeader("Access-Control-Allow-Origin", "*")
         return response
+    }
+
+    /**
+     * Live Python API reference, introspected from `automator.py` (single source of truth) so it
+     * never drifts from the module. Returns [] if the Python runtime isn't up yet — the dashboard
+     * shows a retry-friendly empty state rather than erroring.
+     */
+    private fun handleApiReference(): Response {
+        return try {
+            // The runtime is normally already up (MainActivity starts it on launch); start it
+            // here too so the reference still loads if the service was restarted standalone.
+            if (!Python.isStarted()) Python.start(AndroidPlatform(context.applicationContext))
+            val json = Python.getInstance().getModule("automator")?.callAttr("api_reference")?.toString() ?: "[]"
+            newFixedLengthResponse(Response.Status.OK, "application/json", json)
+        } catch (e: Exception) {
+            Log.e("FarAuto", "api_reference failed", e)
+            newFixedLengthResponse(Response.Status.INTERNAL_ERROR, "application/json", "[]")
+        }
     }
 
     private fun handleGetScriptContent(session: IHTTPSession): Response {
