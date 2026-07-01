@@ -187,6 +187,15 @@
 
         #setup-overlay { display: none; position: absolute; inset: 0; background: var(--panel); z-index: 50; padding: 40px; overflow-y: auto; }
         .setup-card { max-width: 800px; margin: 0 auto; }
+        /* API Reference overlay — same chrome as the MCP setup overlay. */
+        #api-overlay { display: none; position: absolute; inset: 0; background: var(--panel); z-index: 50; padding: 40px; overflow-y: auto; }
+        #api-search { width: 100%; margin: 4px 0 18px; }
+        .api-group-title { color: var(--accent); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; margin: 22px 0 10px; }
+        .api-fn { padding: 10px 0; border-bottom: 1px solid var(--border); }
+        .api-sig { font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: var(--text); font-weight: 500; }
+        .api-sig .api-name { color: var(--accent); }
+        .api-desc { font-size: 0.82rem; color: var(--text-dim); margin-top: 4px; line-height: 1.45; }
+        .api-empty { color: var(--text-dim); font-size: 0.85rem; padding: 12px 0; }
         .code-box { background: var(--terminal-bg); color: var(--terminal-text); padding: 15px; border-radius: 10px; overflow-x: auto; position: relative; font-size: 13px; font-family: 'JetBrains Mono', monospace; margin-bottom: 20px; }
         .copy-btn { position: absolute; top: 10px; right: 10px; background: var(--accent); color: #fff; padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; }
 
@@ -424,8 +433,9 @@
         html[data-theme="lollipop"] #log-terminal::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.18); }
 
         /* The AI-setup overlay is the deliberate candy+glass accent: frosted panel. */
-        html[data-theme="lollipop"] #setup-overlay {
-            background: rgba(243, 237, 245, 0.62);
+        html[data-theme="lollipop"] #setup-overlay,
+        html[data-theme="lollipop"] #api-overlay {
+            background: rgba(202, 192, 214, 0.72);
             backdrop-filter: blur(16px) saturate(1.15);
             -webkit-backdrop-filter: blur(16px) saturate(1.15);
         }
@@ -456,8 +466,10 @@
         /* Menus, modals and the setup overlay pop into place. */
         html[data-theme="lollipop"] .menu.open { animation: candyPop 0.18s ease both; }
         html[data-theme="lollipop"] .modal-overlay.open .modal-card { animation: candyPop 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
-        html[data-theme="lollipop"] #setup-overlay { animation: candyFade 0.3s ease both; }
-        html[data-theme="lollipop"] #setup-overlay .setup-card { animation: candyPop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        html[data-theme="lollipop"] #setup-overlay,
+        html[data-theme="lollipop"] #api-overlay { animation: candyFade 0.3s ease both; }
+        html[data-theme="lollipop"] #setup-overlay .setup-card,
+        html[data-theme="lollipop"] #api-overlay .setup-card { animation: candyPop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
         /* Springy buttons (bounce on hover-in, squish on press). */
         html[data-theme="lollipop"] .btn {
@@ -631,6 +643,7 @@
             <div id="seq-indicator" class="seq-pill" style="display: none;"><span class="seq-dot"></span><span id="seq-text">SEQ</span></div>
         </div>
         <div class="auth-bar">
+            <button class="btn btn-ghost" style="padding: 6px 10px; font-size: 0.8rem;" onclick="openApiReference()" title="Show the Python automator API available to scripts">📖 API Reference</button>
             <div class="theme-toggle" onclick="toggleTheme()" id="theme-icon">🍭</div>
             <input type="password" id="token-input" class="input-dark" placeholder="Auth Token" onkeydown="if (event.key === 'Enter') { event.preventDefault(); saveToken(); }">
             <button id="btn-connect" class="btn btn-primary" onclick="saveToken()">Connect</button>
@@ -710,6 +723,18 @@
                                 </ul>
                             </li>
                         </ul>
+                    </div>
+                </div>
+
+                <div id="api-overlay">
+                    <div class="setup-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h2 style="color: var(--accent); margin: 0;">📖 Python API Reference</h2>
+                            <button class="btn btn-ghost" onclick="closeApiReference()">Close</button>
+                        </div>
+                        <p style="color: var(--text-dim); margin-top: 0;">Functions available to your scripts via the <code style="color: var(--accent)">automator</code> module. All calls return <code>None</code>/<code>False</code> on failure and never raise (except the stop signal).</p>
+                        <input type="text" id="api-search" class="input-dark" placeholder="Filter functions…" oninput="renderApiReference(this.value)">
+                        <div id="api-list"></div>
                     </div>
                 </div>
 
@@ -1524,10 +1549,57 @@
         }
 
         function copyIdText(id) { const el = document.querySelector(`#${id} .content-text`); copyText(el.innerText); }
-        function closeSetup() { 
-            document.getElementById('setup-overlay').style.display = 'none'; 
-            clearLogsUI(); 
+        function closeSetup() {
+            document.getElementById('setup-overlay').style.display = 'none';
+            clearLogsUI();
             api('/clear_logs');
+        }
+
+        // The automator API catalog is fetched live from /api_reference, which introspects
+        // app/src/main/python/automator.py — so it never drifts. null = not loaded yet.
+        let apiReference = null;
+
+        function renderApiReference(filter) {
+            const list = document.getElementById('api-list');
+            if (apiReference === null) { list.innerHTML = '<div class="api-empty">Loading…</div>'; return; }
+            const q = (filter || '').trim().toLowerCase();
+            let html = '';
+            let total = 0;
+            apiReference.forEach(group => {
+                const fns = group.fns.filter(f => !q ||
+                    f.name.toLowerCase().includes(q) || (f.desc || '').toLowerCase().includes(q));
+                if (!fns.length) return;
+                total += fns.length;
+                html += `<div class="api-group-title">${escapeHtml(group.group)}</div>`;
+                fns.forEach(f => {
+                    const call = f.cls ? '' : `(${escapeHtml(f.args || '')})`; // classes render without parens
+                    const sig = `<span class="api-name">automator.${escapeHtml(f.name)}</span>${call}`;
+                    html += `<div class="api-fn"><div class="api-sig">${sig}</div><div class="api-desc">${escapeHtml(f.desc || '')}</div></div>`;
+                });
+            });
+            if (!total) html = q
+                ? '<div class="api-empty">No functions match your filter.</div>'
+                : '<div class="api-empty">Could not load the API reference. Close and reopen to retry.</div>';
+            list.innerHTML = html;
+        }
+
+        async function openApiReference() {
+            switchTab('terminal');
+            document.getElementById('api-overlay').style.display = 'block';
+            if (!apiReference) {
+                renderApiReference(''); // show the loading state while we fetch
+                try {
+                    const res = await api('/api_reference');
+                    apiReference = (res && res.ok) ? await res.json() : [];
+                } catch (e) { apiReference = []; }
+            }
+            renderApiReference(document.getElementById('api-search').value);
+        }
+        function closeApiReference() { document.getElementById('api-overlay').style.display = 'none'; }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, c =>
+                ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
 
         // Status badge as a colored state nugget; Stop button glows while running.
@@ -1535,6 +1607,7 @@
         function setStopRunning(on) { const b = document.getElementById('btn-stop'); if (b) b.classList.toggle('running', !!on); }
 
         let clearGeneration = 0;
+        let setupPackageShown = false; // guards the MCP setup overlay so the poll opens it only once
         setInterval(async () => {
             if (!currentToken) return;
             const pollGeneration = clearGeneration;
@@ -1574,18 +1647,25 @@
                     const logs = await lRes.text();
                     if (pollGeneration !== clearGeneration) return; // Console was cleared while this poll was in flight
                     if (logs.includes('FAR_AUTO_SETUP_PACKAGE_START')) {
-                        const jsonStr = logs.split('FAR_AUTO_SETUP_PACKAGE_START')[1].split('FAR_AUTO_SETUP_PACKAGE_END')[0];
-                        try {
-                            const data = JSON.parse(jsonStr);
-                            document.querySelector('#setup-script-code .content-text').innerText = data.script;
-                            document.querySelector('#setup-claude-config .content-text').innerText = JSON.stringify(data.claude_config, null, 2);
-                            document.getElementById('setup-ip-text').innerText = data.ip;
-                            document.getElementById('setup-port-text').innerText = data.port || '8080';
-                            document.getElementById('setup-token-text').innerText = data.token;
-                            document.getElementById('setup-overlay').style.display = 'block';
-                            switchTab('terminal');
-                        } catch(e) { console.error("Setup parse error", e); }
+                        // Rising-edge only: the setup payload stays in the log buffer, so render and
+                        // open the overlay just once when it first appears. Without this guard the
+                        // 1s poll re-parsed + re-opened it every tick (the "keeps refreshing" bug).
+                        if (!setupPackageShown) {
+                            const jsonStr = logs.split('FAR_AUTO_SETUP_PACKAGE_START')[1].split('FAR_AUTO_SETUP_PACKAGE_END')[0];
+                            try {
+                                const data = JSON.parse(jsonStr);
+                                document.querySelector('#setup-script-code .content-text').innerText = data.script;
+                                document.querySelector('#setup-claude-config .content-text').innerText = JSON.stringify(data.claude_config, null, 2);
+                                document.getElementById('setup-ip-text').innerText = data.ip;
+                                document.getElementById('setup-port-text').innerText = data.port || '8080';
+                                document.getElementById('setup-token-text').innerText = data.token;
+                                document.getElementById('setup-overlay').style.display = 'block';
+                                switchTab('terminal');
+                                setupPackageShown = true;
+                            } catch(e) { console.error("Setup parse error", e); }
+                        }
                     } else {
+                        setupPackageShown = false; // marker gone (logs cleared) — re-arm for next send
                         const term = document.getElementById('log-terminal');
                         if (!logs.trim()) {
                             // No logs yet — show the welcome banner. Re-draw only when first
