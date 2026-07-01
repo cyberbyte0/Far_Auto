@@ -129,6 +129,8 @@
         .profile-tab.pt-add:hover { background: var(--accent-dim); }
         .script-folder { display: inline-block; font-size: 0.68rem; color: var(--accent); background: var(--accent-dim); border-radius: 6px; padding: 1px 7px; margin-top: 3px; }
         .editor-folder { font-size: 0.8rem; font-weight: 600; color: var(--accent); background: var(--accent-dim); border-radius: 8px; padding: 5px 10px; }
+        .editor-folder-select { background: transparent; border: none; color: var(--accent); font-weight: 600; font-size: 0.8rem; font-family: inherit; cursor: pointer; padding: 2px; max-width: 220px; }
+        .editor-folder-select:focus { outline: none; }
 
         .menu { position: fixed; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 6px; display: none; z-index: 300; min-width: 170px; }
         .menu.open { display: block; }
@@ -747,7 +749,7 @@
             <div id="editor-container">
                 <div id="ace-editor"></div>
                 <div class="editor-footer">
-                    <div style="display: flex; align-items: center; gap: 12px;"><span style="font-size: 0.875rem; font-weight: 600; color: var(--text-dim);">File:</span><span id="dirty-dot" class="dirty-dot" title="Unsaved changes"></span><input type="text" id="editor-filename" class="input-dark" style="width: 180px; padding: 6px 12px;" placeholder="name.py"><span id="editor-folder" class="editor-folder" title="Folder this script lives in — change it with the Move action in the list">📁 Uncategorized</span></div>
+                    <div style="display: flex; align-items: center; gap: 12px;"><span style="font-size: 0.875rem; font-weight: 600; color: var(--text-dim);">File:</span><span id="dirty-dot" class="dirty-dot" title="Unsaved changes"></span><input type="text" id="editor-filename" class="input-dark" style="width: 180px; padding: 6px 12px;" placeholder="name.py"><span class="editor-folder" style="padding: 3px 8px; display: inline-flex; align-items: center; gap: 4px;" title="Folder this script saves into — pick another to move it here on save">📁 <select id="editor-folder-select" class="editor-folder-select" onchange="onEditorFolderChange(this.value)"></select></span></div>
                     <div style="display: flex; gap: 12px;"><button class="btn btn-ghost" onclick="saveScript()">Save</button><button class="btn btn-primary" onclick="saveAndRun()">Save & Run</button></div>
                 </div>
             </div>
@@ -1005,7 +1007,7 @@
             // Re-trigger a quick fade on whichever panel is now shown.
             const shown = tab === 'terminal' ? termC : edC;
             shown.classList.remove('tab-anim'); void shown.offsetWidth; shown.classList.add('tab-anim');
-            if (tab === 'editor' && editor) editor.resize();
+            if (tab === 'editor') { populateEditorFolderSelect(); if (editor) editor.resize(); }
             if (tab === 'terminal') focusTerminalInput();
         }
 
@@ -1032,7 +1034,8 @@
         let scriptsMeta = [];
         let profilesMeta = [];        // [{name, script_count}] — profile folders under scripts/
         let activeProfile = '__all__'; // active tab: '__all__' = every script, '' = Uncategorized, else folder name
-        let editingProfile = '';       // folder the script open in the editor belongs to / will save into
+        let editingProfile = '';       // folder the editor will SAVE into (destination; changed via the folder dropdown)
+        let editorSaved = null;        // {name, profile} of where the open script currently lives on disk (null = new/unsaved)
 
         // Stable identity for a script: profile folder + filename ("" profile = uncategorized root).
         function skey(s) { return (s.profile || '') + '/' + s.name; }
@@ -1367,12 +1370,46 @@
             }
         }
 
-        // Reflects (and stores) the folder the editor is working in. Folder changes happen via the
-        // tab-based Move action in the list, not from inside the editor, so this is display-only.
+        // Sets the editor's destination folder and syncs the folder dropdown to it.
         function setEditorFolder(profile) {
             editingProfile = profileExists(profile) ? profile : '';
-            const el = document.getElementById('editor-folder');
-            if (el) el.textContent = '📁 ' + (editingProfile || 'Uncategorized');
+            populateEditorFolderSelect();
+        }
+
+        // Rebuilds the folder dropdown from the known profiles and selects the current destination.
+        function populateEditorFolderSelect() {
+            const sel = document.getElementById('editor-folder-select');
+            if (!sel) return;
+            let html = '<option value="">📁 Uncategorized</option>';
+            profilesMeta.forEach(p => { html += `<option value="${escapeHtml(p.name)}">📁 ${escapeHtml(p.name)}</option>`; });
+            html += '<option value="__newfolder__">➕ New folder…</option>';
+            sel.innerHTML = html;
+            if (!profileExists(editingProfile)) editingProfile = '';
+            sel.value = editingProfile || '';
+        }
+
+        // Fired when the user picks a folder in the editor. Changing it just retargets where Save
+        // will write; the actual move (removing the old copy) happens in saveScript().
+        async function onEditorFolderChange(value) {
+            if (value === '__newfolder__') { await createEditorFolder(); return; }
+            editingProfile = profileExists(value) ? value : '';
+            setDirty(true); // destination changed — Save / Save & Run will write (and move) it there
+        }
+
+        // Create a folder inline from the editor dropdown, then select it as the destination.
+        async function createEditorFolder() {
+            const name = await promptFolderName('New folder', '', null);
+            if (!name) { populateEditorFolderSelect(); return; } // cancelled — revert selection
+            const res = await api('/create_profile?name=' + encodeURIComponent(name), 'POST');
+            if (res && res.ok) {
+                editingProfile = await res.json().then(j => j.name).catch(() => name);
+                await loadScripts();            // refresh profilesMeta so the new folder is known
+                populateEditorFolderSelect();   // and appears selected in the dropdown
+                setDirty(true);
+                toast('Folder created — Save to move the script here');
+            } else if (res && res.status === 409) {
+                toast('A folder named “' + name + '” already exists', false); populateEditorFolderSelect();
+            } else { toast('Could not create folder', false); populateEditorFolderSelect(); }
         }
 
         async function openEditor(name, profile = '') {
@@ -1381,6 +1418,7 @@
             if (res && res.ok) {
                 document.getElementById('editor-filename').value = name;
                 setEditorFolder(profile);
+                editorSaved = { name, profile: editingProfile }; // remember where it lives so a folder change becomes a move
                 editor.setValue(await res.text(), -1); setDirty(false); switchTab('editor');
             }
         }
@@ -1389,9 +1427,25 @@
             const name = document.getElementById('editor-filename').value.trim();
             if (!name) return false;
             const fullName = name.endsWith('.py') ? name : name + '.py';
-            const res = await api('/save_script?name=' + encodeURIComponent(fullName) + '&profile=' + encodeURIComponent(editingProfile),
+            const dest = editingProfile;
+            // When saving into a folder the script doesn't already live in, warn before clobbering a
+            // same-named script that's already there (a folder move shouldn't silently destroy a file).
+            const movingFolders = !editorSaved || editorSaved.profile !== dest;
+            if (movingFolders && scriptsMeta.some(s => s.name === fullName && (s.profile || '') === dest)) {
+                const where = dest ? '“' + dest + '”' : 'Uncategorized';
+                if (!(await confirmModal('Overwrite script?', 'A script named “' + fullName + '” already exists in ' + where + '. Saving here will overwrite it.', { confirmText: 'Overwrite', danger: true }))) return false;
+            }
+            const res = await api('/save_script?name=' + encodeURIComponent(fullName) + '&profile=' + encodeURIComponent(dest),
                 'POST', 'postData=' + encodeURIComponent(editor.getValue()));
-            if (res && res.ok) { setDirty(false); loadScripts(); if (!quiet) toast('Saved'); return true; }
+            if (res && res.ok) {
+                // If the script already lived in a different folder, delete that old copy so switching
+                // the folder is a MOVE (single file in the new folder), not a duplicate.
+                if (editorSaved && editorSaved.profile !== dest) {
+                    await api('/delete?name=' + encodeURIComponent(editorSaved.name) + '&profile=' + encodeURIComponent(editorSaved.profile), 'POST');
+                }
+                editorSaved = { name: fullName, profile: dest };
+                setDirty(false); loadScripts(); if (!quiet) toast('Saved'); return true;
+            }
             return false;
         }
 
@@ -1688,7 +1742,7 @@
             if (!text.trim()) { toast('Console is empty', false); return; }
             copyText(text);
         }
-        async function newScript() { if (!(await confirmDiscard())) return; document.getElementById('editor-filename').value = 'new.py'; setEditorFolder(activeProfile === '__all__' ? '' : activeProfile); if (editor) { editor.setValue('# New Script\nimport automator\n', -1); setDirty(false); } switchTab('editor'); }
+        async function newScript() { if (!(await confirmDiscard())) return; document.getElementById('editor-filename').value = 'new.py'; setEditorFolder(activeProfile === '__all__' ? '' : activeProfile); editorSaved = null; if (editor) { editor.setValue('# New Script\nimport automator\n', -1); setDirty(false); } switchTab('editor'); }
 
         function toggleExportMenu(e) {
             e.stopPropagation();
